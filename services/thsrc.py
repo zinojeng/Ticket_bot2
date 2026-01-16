@@ -217,28 +217,33 @@ class THSRC(BaseService):
 
     def get_security_code(self, captcha_url):
         """OCR captcha, and return security code"""
-
-        res = self.session.get(captcha_url, timeout=200)
-        if res.status_code == 200:
-            base64_str = base64.b64encode(res.content).decode("utf-8")
-            base64_str = base64_str.replace(
-                '+', '-').replace('/', '_').replace('=', '')
-
-            data = {'base64_str': base64_str}
-
-            res = self.session.post(
-                self.config['api']['captcha_ocr'], json=data, timeout=200)
+        import httpx
+        
+        try:
+            res = self.session.get(captcha_url, timeout=60)
             if res.status_code == 200:
-                security_code = res.json()['data']
-                self.logger.info("+ Security code: %s (%s)",
-                                 security_code, captcha_url)
-                return security_code
+                base64_str = base64.b64encode(res.content).decode("utf-8")
+                base64_str = base64_str.replace(
+                    '+', '-').replace('/', '_').replace('=', '')
+
+                data = {'base64_str': base64_str}
+
+                res = self.session.post(
+                    self.config['api']['captcha_ocr'], json=data, timeout=30)
+                if res.status_code == 200:
+                    security_code = res.json()['data']
+                    self.logger.info("+ Security code: %s (%s)",
+                                     security_code, captcha_url)
+                    return security_code
+                else:
+                    self.logger.error(res.text)
+                    return None
             else:
                 self.logger.error(res.text)
-                sys.exit(1)
-        else:
-            self.logger.error(res.text)
-            sys.exit(1)
+                return None
+        except (httpx.TimeoutException, httpx.RequestError) as e:
+            self.logger.warning(f"⚠️ 網路超時，重試中... ({e})")
+            return None
 
     def get_jsessionid(self):
         """Get jsessionid and security code from captcha url"""
@@ -593,6 +598,13 @@ class THSRC(BaseService):
             
             while result_url != self.config['page']['interface'].format(interface=1):
                 security_code = self.get_security_code(captcha_url)
+                
+                # 如果取得驗證碼失敗（網路超時），重新開始
+                if security_code is None:
+                    self.logger.warning("⚠️ 取得驗證碼失敗，重新開始...")
+                    time.sleep(5)
+                    break
+                
                 booking_form_result = self.booking_form(jsessionid, security_code)
                 result_url = booking_form_result.url
 
