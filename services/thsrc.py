@@ -274,10 +274,10 @@ class THSRC(BaseService):
         """1. Fill booking form"""
 
         if self.fields['train-no']:
-            booking_method = 'radio30'  # 車次搜尋 (updated from radio33)
+            booking_method = 'radio33'  # 車次搜尋
             self.outbound_time = ''
         else:
-            booking_method = 'radio28'  # 時間搜尋 (updated from radio31)
+            booking_method = 'radio31'  # 時間搜尋
             self.fields['train-no'] = ''
 
         headers = {
@@ -305,14 +305,12 @@ class THSRC(BaseService):
             'ticketPanel:rows:2:ticketAmount': self.ticket_num[2],
             'ticketPanel:rows:3:ticketAmount': self.ticket_num[3],
             'ticketPanel:rows:4:ticketAmount': self.ticket_num[4],
-            'ticketPanel:rows:5:ticketAmount': self.ticket_num[5],  # 少年票 (新增)
-            'trainTypeContainer:typesoftrain': '0',  # 車次需求: 0=所有車次 (新增)
+            'ticketPanel:rows:5:ticketAmount': self.ticket_num[5],  # 少年票
+            'trainTypeContainer:typesoftrain': '0',  # 車次需求: 0=所有車次
+            'ticketTypeNum': '',  # 隱藏欄位
             'homeCaptcha:securityCode': security_code,
-            'SubmitButton': 'Search',
+            'SubmitButton': '開始查詢',  # 修正按鈕文字
             'portalTag': 'false',
-            'startTimeForTeenager': '2023/07/01',
-            'endTimeForTeenager': '2023/08/31',
-            'isShowTeenager': '0',
         }
 
         form_url = self.config['api']['confirm_train'].format(
