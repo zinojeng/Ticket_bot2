@@ -216,9 +216,8 @@ class THSRC(BaseService):
         return preferred_seat
 
     def get_security_code(self, captcha_url):
-        """OCR captcha using OpenAI Vision API or fallback to holey.cc"""
+        """OCR captcha using holey.cc (專門為高鐵驗證碼訓練的模型)"""
         import httpx
-        import os
         
         try:
             res = self.session.get(captcha_url, timeout=60)
@@ -228,22 +227,14 @@ class THSRC(BaseService):
             
             base64_str = base64.b64encode(res.content).decode("utf-8")
             
-            # 優先使用 OpenAI Vision API
-            openai_api_key = os.getenv('OPENAI_API_KEY')
-            if openai_api_key:
-                security_code = self._ocr_with_openai(base64_str, openai_api_key)
-                if security_code:
-                    self.logger.info("+ Security code (OpenAI): %s", security_code)
-                    return security_code
-            
-            # Fallback to holey.cc OCR
+            # 使用 holey.cc OCR（專門為高鐵驗證碼訓練）
             base64_url_safe = base64_str.replace('+', '-').replace('/', '_').replace('=', '')
             data = {'base64_str': base64_url_safe}
             res = self.session.post(
                 self.config['api']['captcha_ocr'], json=data, timeout=30)
             if res.status_code == 200:
                 security_code = res.json()['data']
-                self.logger.info("+ Security code (OCR): %s", security_code)
+                self.logger.info("+ Security code: %s", security_code)
                 return security_code
             else:
                 self.logger.error(res.text)
@@ -264,19 +255,24 @@ class THSRC(BaseService):
             }
             
             payload = {
-                "model": "gpt-4o-mini",
+                "model": "gpt-4o",  # 使用更強的模型
                 "messages": [
+                    {
+                        "role": "system",
+                        "content": "你是一個專業的驗證碼識別專家。請仔細識別圖片中的4個字元。只輸出4個字元，不要任何其他文字。注意：驗證碼只包含大寫英文字母和數字，不包含小寫字母。常見混淆：0和O、1和I、2和Z、5和S、8和B。"
+                    },
                     {
                         "role": "user",
                         "content": [
                             {
                                 "type": "text",
-                                "text": "這是一個驗證碼圖片，請識別並只回覆4個字元（英文字母或數字），不要有任何其他文字或說明。驗證碼區分大小寫。"
+                                "text": "請識別這個驗證碼圖片中的4個字元，只輸出字元本身："
                             },
                             {
                                 "type": "image_url",
                                 "image_url": {
-                                    "url": f"data:image/png;base64,{base64_image}"
+                                    "url": f"data:image/png;base64,{base64_image}",
+                                    "detail": "high"
                                 }
                             }
                         ]
@@ -295,10 +291,10 @@ class THSRC(BaseService):
             if response.status_code == 200:
                 result = response.json()
                 code = result['choices'][0]['message']['content'].strip()
-                # 清理結果，只保留英數字元
+                # 清理結果，只保留英數字元（保留原始大小寫）
                 code = ''.join(c for c in code if c.isalnum())[:4]
                 if len(code) == 4:
-                    return code.upper()
+                    return code  # 不轉換大小寫
             else:
                 self.logger.warning(f"OpenAI API 錯誤: {response.status_code}")
                 

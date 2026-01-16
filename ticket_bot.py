@@ -10,6 +10,14 @@ from datetime import datetime
 import time
 from zoneinfo import ZoneInfo
 from logging import INFO, DEBUG
+
+# Load .env file for API keys
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 from services import service_map
 from configs.config import config, app_name, filenames, schedules, __version__
 from utils.io import load_toml

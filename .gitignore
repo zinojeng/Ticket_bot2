@@ -11,3 +11,4 @@ test.py
 .vscode/
 raw.json
 test.json
+.env
