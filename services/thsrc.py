@@ -587,7 +587,7 @@ class THSRC(BaseService):
 
             result_url = ''
             retry_count = 0
-            max_retries = 10  # 驗證碼最多重試 10 次
+            max_retries = 20  # 驗證碼最多重試 20 次（OCR 準確率約70-80%）
             found_train = False
             no_ticket_error = False
             
@@ -608,20 +608,24 @@ class THSRC(BaseService):
                         break
                     
                     if retry_count >= max_retries:
-                        self.logger.error("驗證碼重試次數過多，重新開始...")
-                        break
+                        self.logger.warning(f"⚠️ 驗證碼重試 {max_retries} 次仍失敗，重新取得 Session...")
+                        break  # 重新開始整個流程
                     
-                    # 每次失敗都更新驗證碼
-                    self.logger.info(f"驗證碼錯誤，正在更新驗證碼... (第 {retry_count} 次重試)")
+                    # 每次失敗立即更新驗證碼重試
+                    self.logger.info(f"🔄 驗證碼錯誤，更新中... ({retry_count}/{max_retries})")
                     captcha_url = self.update_captcha(jsessionid=jsessionid)
                 else:
                     found_train = True
+                    self.logger.info(f"✅ 驗證碼正確！找到車次列表")
             
             if found_train:
                 break  # 找到車次，繼續訂票流程
             
             if no_ticket_error:
                 continue  # 查無車次，重新搜尋
+            
+            # 驗證碼重試過多，重新開始
+            self.logger.info("🔄 重新開始搜尋...")
 
         confirm_train_page = BeautifulSoup(
             booking_form_result.text, 'html.parser')
