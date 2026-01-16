@@ -53,7 +53,7 @@ class BaseService(object):
                 "Accept-Language": 'zh-TW,zh;q=0.8,en-US;q=0.5,en;q=0.3',
             },
             follow_redirects=True,
-            timeout=httpx.Timeout(200.0),
+            timeout=httpx.Timeout(300.0, connect=60.0),  # 增加超時時間以應對跨區域網路
             proxy=proxy_url,
         )
 

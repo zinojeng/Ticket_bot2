@@ -781,3 +781,7 @@ class THSRC(BaseService):
 
         result_page = BeautifulSoup(confirm_ticket_result.text, 'html.parser')
         self.print_result(result_page)
+        
+        # 訂票成功，自動停止程式
+        self.logger.info("\n🎉 訂票成功！程式自動停止。")
+        sys.exit(0)

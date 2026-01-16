@@ -1140,12 +1140,17 @@ class TicketBotHandler(BaseHTTPRequestHandler):
             def run_bot():
                 import subprocess
                 try:
+                    # 使用 -u 標誌禁用 Python 輸出緩衝，確保日誌即時顯示
+                    env = os.environ.copy()
+                    env["PYTHONUNBUFFERED"] = "1"
+                    
                     process = subprocess.Popen(
-                        [sys.executable, "ticket_bot.py", "thsrc", "-a"],
+                        [sys.executable, "-u", "ticket_bot.py", "thsrc", "-a"],
                         stdout=subprocess.PIPE,
                         stderr=subprocess.STDOUT,
                         text=True,
-                        bufsize=1
+                        bufsize=1,
+                        env=env
                     )
                     app_state["current_task"] = process
                     

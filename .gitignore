@@ -12,3 +12,4 @@ test.py
 raw.json
 test.json
 .env
+user_config.toml
