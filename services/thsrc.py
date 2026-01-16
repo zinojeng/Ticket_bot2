@@ -216,34 +216,96 @@ class THSRC(BaseService):
         return preferred_seat
 
     def get_security_code(self, captcha_url):
-        """OCR captcha, and return security code"""
+        """OCR captcha using OpenAI Vision API or fallback to holey.cc"""
         import httpx
+        import os
         
         try:
             res = self.session.get(captcha_url, timeout=60)
-            if res.status_code == 200:
-                base64_str = base64.b64encode(res.content).decode("utf-8")
-                base64_str = base64_str.replace(
-                    '+', '-').replace('/', '_').replace('=', '')
-
-                data = {'base64_str': base64_str}
-
-                res = self.session.post(
-                    self.config['api']['captcha_ocr'], json=data, timeout=30)
-                if res.status_code == 200:
-                    security_code = res.json()['data']
-                    self.logger.info("+ Security code: %s (%s)",
-                                     security_code, captcha_url)
+            if res.status_code != 200:
+                self.logger.error(res.text)
+                return None
+            
+            base64_str = base64.b64encode(res.content).decode("utf-8")
+            
+            # 優先使用 OpenAI Vision API
+            openai_api_key = os.getenv('OPENAI_API_KEY')
+            if openai_api_key:
+                security_code = self._ocr_with_openai(base64_str, openai_api_key)
+                if security_code:
+                    self.logger.info("+ Security code (OpenAI): %s", security_code)
                     return security_code
-                else:
-                    self.logger.error(res.text)
-                    return None
+            
+            # Fallback to holey.cc OCR
+            base64_url_safe = base64_str.replace('+', '-').replace('/', '_').replace('=', '')
+            data = {'base64_str': base64_url_safe}
+            res = self.session.post(
+                self.config['api']['captcha_ocr'], json=data, timeout=30)
+            if res.status_code == 200:
+                security_code = res.json()['data']
+                self.logger.info("+ Security code (OCR): %s", security_code)
+                return security_code
             else:
                 self.logger.error(res.text)
                 return None
+                
         except (httpx.TimeoutException, httpx.RequestError) as e:
             self.logger.warning(f"⚠️ 網路超時，重試中... ({e})")
             return None
+    
+    def _ocr_with_openai(self, base64_image, api_key):
+        """Use OpenAI GPT-4 Vision to recognize captcha"""
+        import httpx
+        
+        try:
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}"
+            }
+            
+            payload = {
+                "model": "gpt-4o-mini",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "這是一個驗證碼圖片，請識別並只回覆4個字元（英文字母或數字），不要有任何其他文字或說明。驗證碼區分大小寫。"
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/png;base64,{base64_image}"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "max_tokens": 10
+            }
+            
+            with httpx.Client(timeout=30) as client:
+                response = client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers=headers,
+                    json=payload
+                )
+            
+            if response.status_code == 200:
+                result = response.json()
+                code = result['choices'][0]['message']['content'].strip()
+                # 清理結果，只保留英數字元
+                code = ''.join(c for c in code if c.isalnum())[:4]
+                if len(code) == 4:
+                    return code.upper()
+            else:
+                self.logger.warning(f"OpenAI API 錯誤: {response.status_code}")
+                
+        except Exception as e:
+            self.logger.warning(f"OpenAI OCR 失敗: {e}")
+        
+        return None
 
     def get_jsessionid(self):
         """Get jsessionid and security code from captcha url"""
