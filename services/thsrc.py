@@ -37,11 +37,16 @@ class THSRC(BaseService):
     def print_error_message(self, html_page):
         """Print error messsage"""
         page = BeautifulSoup(html_page, 'html.parser')
+        error_messages = []
         for error_text in page.find_all(class_='feedbackPanelERROR'):
             error_message = error_text.text.strip()
             self.logger.error('Error: %s', error_message)
-            if '售完' in error_message or '選擇的日期超過目前開放預訂之日期' in error_message or '請選擇' in error_message:
-                sys.exit(0)
+            error_messages.append(error_message)
+            # 只有在「選擇的日期超過目前開放預訂之日期」時才退出（因為這表示日期設定錯誤）
+            if '選擇的日期超過目前開放預訂之日期' in error_message:
+                self.logger.error("❌ 日期超過可預訂範圍，請修改 user_config.toml 中的 outbound-date")
+                sys.exit(1)
+        return error_messages
 
     def get_station(self, station_name):
         """Get station value"""
@@ -560,31 +565,58 @@ class THSRC(BaseService):
 
     def main(self):
         """Buy ticket process"""
+        
+        import time
+        
+        search_attempt = 0
+        while True:  # 持續搜尋直到訂到票
+            search_attempt += 1
+            self.logger.info(f"\n{'='*50}")
+            self.logger.info(f"🔍 第 {search_attempt} 次搜尋...")
+            self.logger.info(f"{'='*50}")
+            
+            jsessionid = ''
+            captcha_url = ''
+            while not jsessionid and not captcha_url:
+                jsessionid, captcha_url = self.get_jsessionid()
 
-        jsessionid = ''
-        captcha_url = ''
-        while not jsessionid and not captcha_url:
-            jsessionid, captcha_url = self.get_jsessionid()
+            result_url = ''
+            retry_count = 0
+            max_retries = 10  # 驗證碼最多重試 10 次
+            found_train = False
+            no_ticket_error = False
+            
+            while result_url != self.config['page']['interface'].format(interface=1):
+                security_code = self.get_security_code(captcha_url)
+                booking_form_result = self.booking_form(jsessionid, security_code)
+                result_url = booking_form_result.url
 
-        result_url = ''
-        retry_count = 0
-        max_retries = 10  # 最多重試 10 次
-        while result_url != self.config['page']['interface'].format(interface=1):
-            security_code = self.get_security_code(captcha_url)
-            booking_form_result = self.booking_form(jsessionid, security_code)
-            result_url = booking_form_result.url
-
-            if result_url != self.config['page']['interface'].format(interface=1):
-                self.print_error_message(booking_form_result.text)
-                retry_count += 1
-                
-                if retry_count >= max_retries:
-                    self.logger.error("已達最大重試次數，請稍後再試")
-                    sys.exit(1)
-                
-                # 每次失敗都更新驗證碼
-                self.logger.info(f"驗證碼錯誤，正在更新驗證碼... (第 {retry_count} 次重試)")
-                captcha_url = self.update_captcha(jsessionid=jsessionid)
+                if result_url != self.config['page']['interface'].format(interface=1):
+                    error_msg = self.print_error_message(booking_form_result.text)
+                    retry_count += 1
+                    
+                    # 檢查是否為「查無車次」錯誤
+                    if '查無可售車次' in booking_form_result.text or '已售完' in booking_form_result.text:
+                        self.logger.warning("⚠️ 查無可售車次或已售完，30秒後重新搜尋...")
+                        no_ticket_error = True
+                        time.sleep(30)  # 等待 30 秒後重試
+                        break
+                    
+                    if retry_count >= max_retries:
+                        self.logger.error("驗證碼重試次數過多，重新開始...")
+                        break
+                    
+                    # 每次失敗都更新驗證碼
+                    self.logger.info(f"驗證碼錯誤，正在更新驗證碼... (第 {retry_count} 次重試)")
+                    captcha_url = self.update_captcha(jsessionid=jsessionid)
+                else:
+                    found_train = True
+            
+            if found_train:
+                break  # 找到車次，繼續訂票流程
+            
+            if no_ticket_error:
+                continue  # 查無車次，重新搜尋
 
         confirm_train_page = BeautifulSoup(
             booking_form_result.text, 'html.parser')
