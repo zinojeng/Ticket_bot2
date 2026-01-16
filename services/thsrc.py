@@ -569,6 +569,8 @@ class THSRC(BaseService):
             jsessionid, captcha_url = self.get_jsessionid()
 
         result_url = ''
+        retry_count = 0
+        max_retries = 10  # 最多重試 10 次
         while result_url != self.config['page']['interface'].format(interface=1):
             security_code = self.get_security_code(captcha_url)
             booking_form_result = self.booking_form(jsessionid, security_code)
@@ -576,9 +578,15 @@ class THSRC(BaseService):
 
             if result_url != self.config['page']['interface'].format(interface=1):
                 self.print_error_message(booking_form_result.text)
-
-                if '檢測碼輸入錯誤' in booking_form_result.text:
-                    captcha_url = self.update_captcha(jsessionid=jsessionid)
+                retry_count += 1
+                
+                if retry_count >= max_retries:
+                    self.logger.error("已達最大重試次數，請稍後再試")
+                    sys.exit(1)
+                
+                # 每次失敗都更新驗證碼
+                self.logger.info(f"驗證碼錯誤，正在更新驗證碼... (第 {retry_count} 次重試)")
+                captcha_url = self.update_captcha(jsessionid=jsessionid)
 
         confirm_train_page = BeautifulSoup(
             booking_form_result.text, 'html.parser')
