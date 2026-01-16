@@ -244,6 +244,9 @@ class THSRC(BaseService):
         """Get jsessionid and security code from captcha url"""
         self.logger.info("\nLoading...")
 
+        # 清除舊的 JSESSIONID，確保取得新的 session
+        self.session.cookies.delete('JSESSIONID', domain='irs.thsrc.com.tw')
+        
         # 設置 Cookie 同意（高鐵網站現在需要先同意 Cookie 政策）
         self.session.cookies.set('cookieAccepted', 'true', domain='irs.thsrc.com.tw')
         self.session.cookies.set('isShowCookiePolicy', 'N', domain='irs.thsrc.com.tw')
@@ -254,7 +257,9 @@ class THSRC(BaseService):
             page = BeautifulSoup(res.text, 'html.parser')
             captcha_url = 'https://irs.thsrc.com.tw' + \
                 page.find('img', class_='captcha-img')['src']
-            jsessionid = res.cookies.get('JSESSIONID')
+            # 優先從響應 cookies 取得，否則從 session cookies 取得
+            jsessionid = res.cookies.get('JSESSIONID') or self.session.cookies.get('JSESSIONID')
+            self.logger.info(f"Session ID: {jsessionid[:20]}..." if jsessionid else "No session ID")
             return jsessionid, captcha_url
         else:
             self.logger.error(res.text)
