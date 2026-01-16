@@ -543,27 +543,48 @@ class THSRC(BaseService):
             'agree': 'on',
         }
 
+        # 處理所有乘客的身分證欄位
+        # 找到所有乘客身分證輸入欄位
+        passenger_id_inputs = html_page.find_all(
+            'input',
+            attrs={
+                'name': re.compile(r'passengerDataIdNumber$')
+            }
+        )
+        
+        # 為每位乘客填入身分證
+        for i, input_field in enumerate(passenger_id_inputs):
+            field_name = input_field.attrs.get('name', '')
+            # 預設使用訂票人身分證，或者對應的特殊票種身分證
+            data[field_name] = dummy_id  # 使用訂票人身分證
+        
+        # 處理愛心票 - 覆蓋對應的身分證
         disableds = html_page.find_all(
             'input',
             attrs={
                 'value': '愛心票'
             },
         )
-        for disabled, disabled_id in zip(disableds, self.fields['ids']['disabled']):
+        disabled_ids = self.fields.get('ids', {}).get('disabled', [])
+        for disabled, disabled_id in zip(disableds, disabled_ids):
             data[disabled.attrs['name']] = disabled.attrs['value']
-            data[disabled.attrs['name'].replace(
-                'passengerDataTypeName', 'passengerDataIdNumber')] = disabled_id.strip() or input("\nInput disabled id: ")
+            if disabled_id:
+                data[disabled.attrs['name'].replace(
+                    'passengerDataTypeName', 'passengerDataIdNumber')] = disabled_id.strip()
 
+        # 處理敬老票 - 覆蓋對應的身分證
         elders = html_page.find_all(
             'input',
             attrs={
                 'value': '敬老票'
             },
         )
-        for elder, elder_id in zip(elders, self.fields['ids']['elder']):
+        elder_ids = self.fields.get('ids', {}).get('elder', [])
+        for elder, elder_id in zip(elders, elder_ids):
             data[elder.attrs['name']] = elder.attrs['value']
-            data[elder.attrs['name'].replace(
-                'passengerDataTypeName', 'passengerDataIdNumber')] = elder_id.strip() or input("\nInput elder id: ")
+            if elder_id:
+                data[elder.attrs['name'].replace(
+                    'passengerDataTypeName', 'passengerDataIdNumber')] = elder_id.strip()
 
         res = self.session.post(
             self.config['api']['submit'].format(interface=interface),
@@ -702,6 +723,9 @@ class THSRC(BaseService):
 
         if not self.fields['train-no']:
             result_url = ''
+            train_retry = 0
+            max_train_retries = 3
+            
             while result_url != self.config['page']['interface'].format(interface=2):
                 confirm_train_result = self.confirm_train(confirm_train_page)
                 if self.list:
@@ -709,7 +733,20 @@ class THSRC(BaseService):
                 result_url = confirm_train_result.url
 
                 if result_url != self.config['page']['interface'].format(interface=2):
-                    self.print_error_message(booking_form_result.text)
+                    error_msgs = self.print_error_message(confirm_train_result.text)
+                    train_retry += 1
+                    
+                    if error_msgs:
+                        self.logger.error(f"❌ 選擇車次失敗: {', '.join(error_msgs)}")
+                    
+                    if train_retry >= max_train_retries:
+                        self.logger.error("❌ 選擇車次重試次數過多")
+                        sys.exit(1)
+                    
+                    # 更新頁面重試
+                    confirm_train_page = BeautifulSoup(confirm_train_result.text, 'html.parser')
+                else:
+                    self.logger.info("✅ 車次選擇成功！")
 
             confirm_ticket_page = BeautifulSoup(
                 confirm_train_result.text, 'html.parser')
@@ -719,12 +756,28 @@ class THSRC(BaseService):
             interface = 2
 
         result_url = ''
+        confirm_retry = 0
+        max_confirm_retries = 5
+        
         while result_url != self.config['page']['interface'].format(interface=interface):
             confirm_ticket_result = self.confirm_ticket(confirm_ticket_page)
             result_url = confirm_ticket_result.url
 
             if result_url != self.config['page']['interface'].format(interface=interface):
-                self.print_error_message(booking_form_result.text)
+                error_msgs = self.print_error_message(confirm_ticket_result.text)
+                confirm_retry += 1
+                
+                # 如果有錯誤訊息，顯示並退出
+                if error_msgs:
+                    self.logger.error(f"❌ 確認訂票失敗: {', '.join(error_msgs)}")
+                    if confirm_retry >= max_confirm_retries:
+                        self.logger.error("❌ 確認訂票重試次數過多，請檢查身分證資料")
+                        sys.exit(1)
+                
+                # 更新頁面內容重試
+                confirm_ticket_page = BeautifulSoup(confirm_ticket_result.text, 'html.parser')
+            else:
+                self.logger.info("✅ 訂票確認成功！")
 
         result_page = BeautifulSoup(confirm_ticket_result.text, 'html.parser')
         self.print_result(result_page)

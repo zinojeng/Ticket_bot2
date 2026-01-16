@@ -9,5 +9,8 @@ RUN pip install --no-cache-dir -r requirements.txt python-dotenv
 # 複製程式碼
 COPY . .
 
-# 執行訂票程式
-CMD ["python", "ticket_bot.py", "thsrc", "-a"]
+# 暴露 PORT
+EXPOSE 8080
+
+# 執行 Web 應用程式
+CMD ["python", "web_app.py"]
