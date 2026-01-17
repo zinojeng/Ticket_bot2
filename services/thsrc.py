@@ -328,25 +328,44 @@ class THSRC(BaseService):
         chrome_options.add_argument(f'--user-agent={user_agent}')
         chrome_options.add_argument('--disable-blink-features=AutomationControlled')
 
-        # 取得 chromedriver 路徑（優先使用環境變數）
-        chromedriver_path = os.environ.get('CHROMEDRIVER_PATH', '/usr/bin/chromedriver')
+        # 設定 Chromium 瀏覽器路徑（Debian 套件）
+        chromium_paths = [
+            '/usr/bin/chromium',
+            '/usr/bin/chromium-browser',
+            '/usr/bin/google-chrome',
+        ]
+        for chromium_path in chromium_paths:
+            if os.path.exists(chromium_path):
+                self.logger.info(f"使用瀏覽器: {chromium_path}")
+                chrome_options.binary_location = chromium_path
+                break
 
-        # 嘗試不同的 chromedriver 路徑
-        possible_paths = [
-            chromedriver_path,
+        # 取得 chromedriver 路徑
+        possible_driver_paths = [
+            os.environ.get('CHROMEDRIVER_PATH', ''),
             '/usr/bin/chromedriver',
+            '/usr/lib/chromium/chromedriver',
             '/usr/local/bin/chromedriver',
         ]
 
         driver = None
         last_error = None
 
-        for path in possible_paths:
-            if os.path.exists(path):
+        # 列出可用的路徑
+        self.logger.info("檢查可用的 chromedriver 路徑...")
+        for path in possible_driver_paths:
+            if path and os.path.exists(path):
+                self.logger.info(f"  ✓ 找到: {path}")
+            elif path:
+                self.logger.info(f"  ✗ 不存在: {path}")
+
+        for path in possible_driver_paths:
+            if path and os.path.exists(path):
                 try:
                     self.logger.info(f"嘗試使用 chromedriver: {path}")
                     service = Service(path)
                     driver = webdriver.Chrome(service=service, options=chrome_options)
+                    self.logger.info("✅ Chrome 啟動成功")
                     break
                 except Exception as e:
                     last_error = e
