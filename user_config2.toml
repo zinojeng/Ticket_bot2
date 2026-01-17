@@ -1,0 +1,59 @@
+# This is an example Ticket Bot's config file.
+
+# Auto buy tickets on schedule time
+[schedules]
+
+[schedules.THSRC]
+datetime = '' # datetime 預計訂票日期 (e.g. 2023-01-01 00:00)
+
+# Copy user-agent from login browser (https://www.whatsmyua.info/)
+[headers]
+User-Agent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15'
+
+[directories]
+
+[fields]
+
+[fields.THSRC]
+id = 'E122508493'             # ROC ID No. 身分證字號 (e.g. AXXXXXXXXX)
+start-station = 'Taipei'  # Start-station 出發站 (e.g. Taipei)
+dest-station = 'Taichung'   # Dest-station 抵達站 (e.g. Tainan)
+outbound-date = '2026-02-18'  # Outbound date 出發日期 (e.g. 2023-01-01)
+outbound-time = '08=7:00'  # Outbound time 出發時間 (e.g. 09:00)
+inbound-time = ''   # Inbound time 抵達時間 (e.g. 12:00)
+preferred-seat = '' # Preferred seat 座位偏好 (e.g. window/aisle)
+car-type = 'normal'       # Car Type 車廂類型 (e.g. normal/business)
+train-no = ''       # Train No. 車次 (e.g. 001)
+email = 'zinojeng@gmail.com'          # E-mail for notification
+phone = '0911221157'          # Phone number for SMS notification 手機號碼
+tgo-id = 'E122508493'         # TSHRC member ID TGO會員ID (e.g. AXXXXXXXXX)
+tax-id = ''         # Government Uniform Invoice number 統一編號 (e.g. 00000000)
+
+[fields.THSRC.ticket]
+adult = 0    # 全票
+child = 0    # 孩童票 (6-11)
+disabled = 1 # 愛心票
+elder = 2    # 敬老票 (65+)
+college = 0  # 大學生票
+teenager = 0 # 少年票 (12-18)
+
+[fields.THSRC.ids]
+disabled = ['A170001401','A226316202'] # Disabled ID No. 愛心票身分證字號 (e.g. AXXXXXXXXX)
+elder = ['A270002017']    # Elder ID No. 敬老票身分證字號 (e.g. AXXXXXXXXX)
+
+[proxies]
+# This is a dictionary of proxies you wish to use on services that require a specific country IP.
+# The dictionary key needs to be an alpha 2 country code (2-letter code, e.g. `us`, `gb`, `jp`, `de`).
+# The value needs to be the proxy string which should be recognizable by python-requests and curl.
+# e.g.: https://username:password123@subdomain.hostname.ext:89
+# If you don't want any, just have this section blank or remove the [proxies] entirely
+# us = 'http://127.0.0.1:7890' # Clash
+
+[nordvpn]
+# Like `proxies` above, this does the same thing except it automatically generates a proxy string
+# for a nordvpn server automatically.
+# The credentials should be `Service credentials` NOT your Nord account details!
+# https://my.nordaccount.com/dashboard/nordvpn/ (Under advanced configuration).
+# e.g.: https://support.nordvpn.com/Connectivity/Proxy/1087802472/Proxy-setup-on-qBittorrent.htm
+username = ''
+password = ''

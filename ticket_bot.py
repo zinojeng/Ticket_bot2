@@ -14,7 +14,10 @@ from logging import INFO, DEBUG
 # Load .env file for API keys
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    # 確保從腳本所在目錄載入 .env
+    import pathlib
+    env_path = pathlib.Path(__file__).parent / '.env'
+    load_dotenv(dotenv_path=env_path)
 except ImportError:
     pass
 

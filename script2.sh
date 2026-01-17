@@ -4,6 +4,13 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# 載入 .env 環境變數
+if [ -f ".env" ]; then
+    echo "Loading .env file..."
+    export $(grep -v '^#' .env | xargs)
+    echo "GEMINI_API_KEY loaded: ${GEMINI_API_KEY:0:10}...${GEMINI_API_KEY: -4}"
+fi
+
 # 建立虛擬環境（如果不存在）
 if [ ! -d "venv" ]; then
     echo "Creating virtual environment..."

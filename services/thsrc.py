@@ -217,7 +217,7 @@ class THSRC(BaseService):
         return preferred_seat
 
     def get_security_code(self, captcha_url):
-        """OCR captcha - 先用 holey.cc 解析，再用 OpenAI 驗證修正"""
+        """OCR captcha - holey.cc 與 Gemini 3 雙重比對方案"""
         import httpx
         
         try:
@@ -228,6 +228,7 @@ class THSRC(BaseService):
             
             base64_str = base64.b64encode(res.content).decode("utf-8")
             holey_result = None
+            gemini_result = None
             
             # Step 1: 使用 holey.cc OCR（專門為高鐵驗證碼訓練）
             try:
@@ -242,123 +243,89 @@ class THSRC(BaseService):
             except Exception as e:
                 self.logger.warning(f"holey.cc OCR 失敗: {e}")
             
-            # Step 2: 使用 OpenAI 驗證或修正（如果有設定 API Key）
-            openai_api_key = os.getenv('OPENAI_API_KEY')
-            if openai_api_key:
-                final_result = self._ocr_with_openai_verify(
-                    base64_str, openai_api_key, holey_result
-                )
-                if final_result:
-                    self.logger.info("+ 最終驗證碼: %s", final_result)
-                    return final_result
+            # Step 2: 使用 Gemini 3 識別（如果設定了 GEMINI_API_KEY）
+            gemini_api_key = os.getenv('GEMINI_API_KEY')
+            if gemini_api_key:
+                # Debug: 顯示 API key 前幾個字元確認是否正確讀取
+                self.logger.info(f"🔑 GEMINI_API_KEY: {gemini_api_key[:10]}...{gemini_api_key[-4:]}")
+                self.logger.info("✨ 使用 Gemini 3 Flash 識別中...")
+                gemini_result = self._ocr_with_gemini("gemini-3-flash-preview", base64_str, gemini_api_key)
+                if gemini_result:
+                    self.logger.info(f"+ Gemini 3 識別: {gemini_result}")
             
-            # 如果沒有 OpenAI 或 OpenAI 失敗，返回 holey.cc 結果
-            if holey_result:
-                self.logger.info("+ Security code: %s", holey_result)
-                return holey_result
+            # Step 3: 比對結果並輸出最終答案
+            if holey_result and gemini_result:
+                if holey_result.upper() == gemini_result.upper():
+                    self.logger.info("🎯 兩者一致，信心度高！")
+                    return gemini_result
+                else:
+                    self.logger.warning(f"⚡ 結果不一致! (holey.cc: {holey_result} vs Gemini: {gemini_result})")
+                    # 目前策略：優先採用 Gemini 3，因為它是具備視覺推理能力的最新模型
+                    self.logger.info(f"🔧 採用 Gemini 3 修正結果: {gemini_result}")
+                    return gemini_result
+            
+            # 備原方案：如果只有其中一個成功
+            final_code = gemini_result or holey_result
+            if final_code:
+                self.logger.info("+ 最終驗證碼: %s", final_code)
+                return final_code
             
             return None
                 
         except (httpx.TimeoutException, httpx.RequestError) as e:
             self.logger.warning(f"⚠️ 網路超時，重試中... ({e})")
             return None
-    
-    def _ocr_with_openai_verify(self, base64_image, api_key, holey_result=None):
-        """Use OpenAI GPT-4 Vision to verify/correct captcha with holey.cc reference"""
+
+    def _ocr_with_gemini(self, model, base64_image, api_key):
+        """Use Gemini 3 API for independent captcha recognition"""
         import httpx
         
-        try:
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {api_key}"
-            }
-            
-            # 根據是否有 holey.cc 結果來調整 prompt
-            if holey_result:
-                system_prompt = """You are a CAPTCHA recognition expert.
-Another OCR system has identified a result. Verify if it's correct.
-If correct, output the same result. If wrong, correct it.
+        # 嘗試使用 gemini-2.0-flash (目前最穩定支援 Vision 的版本) 
+        # 或保留傳入的 model 名稱
+        api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+        
+        prompt = "Read the 4 characters in this CAPTCHA image. Output EXACTLY 4 characters (A-Z, 0-9) ONLY. No spaces, no explanation."
 
-STRICT RULES:
-- CAPTCHA contains ONLY uppercase letters (A-Z) and digits (0-9)
-- Output EXACTLY 4 characters, nothing else
-- NO explanation, NO punctuation, NO spaces
-- Common confusions: 0/O, 1/I, 2/Z, 5/S, 8/B, 6/G
-
-Example output: AB12"""
-                
-                user_text = f"OCR result: {holey_result}\nVerify and output 4 characters only:"
-            else:
-                system_prompt = """You are a CAPTCHA recognition expert.
-Identify the 4 characters in the image.
-
-STRICT RULES:
-- CAPTCHA contains ONLY uppercase letters (A-Z) and digits (0-9)
-- Output EXACTLY 4 characters, nothing else
-- NO explanation, NO punctuation, NO spaces
-- Common confusions: 0/O, 1/I, 2/Z, 5/S, 8/B, 6/G
-
-Example output: AB12"""
-                
-                user_text = "Identify 4 characters, output only:"
-            
-            payload = {
-                "model": "gpt-4o",
-                "messages": [
+        payload = {
+            "contents": [{
+                "parts": [
+                    {"text": prompt},
                     {
-                        "role": "system",
-                        "content": system_prompt
-                    },
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": user_text
-                            },
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:image/png;base64,{base64_image}",
-                                    "detail": "high"
-                                }
-                            }
-                        ]
+                        "inline_data": {
+                            "mime_type": "image/png",
+                            "data": base64_image
+                        }
                     }
-                ],
-                "max_tokens": 10
+                ]
+            }],
+            "generationConfig": {
+                "maxOutputTokens": 10,
+                "temperature": 0.1,
+                "topP": 0.1
             }
-            
+        }
+
+        try:
             with httpx.Client(timeout=30) as client:
-                response = client.post(
-                    "https://api.openai.com/v1/chat/completions",
-                    headers=headers,
-                    json=payload
-                )
-            
-            if response.status_code == 200:
-                result = response.json()
-                raw_code = result['choices'][0]['message']['content'].strip()
-                # 只保留英文字母(A-Z, a-z)和數字(0-9)，過濾掉中文等其他字元
-                code = ''.join(c for c in raw_code if c.isascii() and c.isalnum()).upper()
-                
-                # 驗證結果：必須是 4 個字元
-                if len(code) == 4:
-                    if holey_result and code != holey_result.upper():
-                        self.logger.info(f"🔧 OpenAI 修正: {holey_result} → {code}")
-                    return code
+                res = client.post(api_url, json=payload)
+                if res.status_code == 200:
+                    result = res.json()
+                    if 'candidates' in result and result['candidates']:
+                        content = result['candidates'][0].get('content', {})
+                        parts = content.get('parts', [])
+                        if parts:
+                            raw_text = parts[0].get('text', '').strip()
+                            code = ''.join(c for c in raw_text if c.isascii() and c.isalnum()).upper()
+                            if len(code) >= 4:
+                                return code[:4]
                 else:
-                    # OpenAI 返回無效結果，使用 holey.cc 原始結果
-                    self.logger.warning(f"⚠️ OpenAI 返回無效結果: '{raw_code}'，使用 holey.cc 結果")
-                    return holey_result.upper() if holey_result else None
-            else:
-                self.logger.warning(f"OpenAI API 錯誤: {response.status_code}")
-                
+                    self.logger.warning(f"Gemini API 錯誤: {res.status_code}")
+                    self.logger.warning(f"回應內容: {res.text}") # 新增詳細錯誤內容
         except Exception as e:
-            self.logger.warning(f"OpenAI 驗證失敗: {e}")
+            self.logger.warning(f"Gemini 呼叫失敗: {e}")
         
         return None
-
+    
     def get_jsessionid(self, max_retries=3):
         """Get jsessionid and security code from captcha url"""
         self.logger.info("\nLoading...")
