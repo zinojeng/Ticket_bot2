@@ -8,6 +8,7 @@ import os
 import random
 import re
 import sys
+import time
 from datetime import date, datetime, timedelta
 from bs4 import BeautifulSoup
 import pyperclip
@@ -303,30 +304,49 @@ class THSRC(BaseService):
         
         return None
 
-    def get_jsessionid(self):
+    def get_jsessionid(self, max_retries=3):
         """Get jsessionid and security code from captcha url"""
         self.logger.info("\nLoading...")
 
         # 清除舊的 JSESSIONID，確保取得新的 session
         self.session.cookies.delete('JSESSIONID', domain='irs.thsrc.com.tw')
-        
+
         # 設置 Cookie 同意（高鐵網站現在需要先同意 Cookie 政策）
         self.session.cookies.set('cookieAccepted', 'true', domain='irs.thsrc.com.tw')
         self.session.cookies.set('isShowCookiePolicy', 'N', domain='irs.thsrc.com.tw')
 
-        res = self.session.get(self.config['page']['reservation'])
+        for attempt in range(1, max_retries + 1):
+            try:
+                self.logger.info(f"連線高鐵網站... (嘗試 {attempt}/{max_retries})")
+                res = self.session.get(self.config['page']['reservation'], timeout=60)
 
-        if res.status_code == 200:
-            page = BeautifulSoup(res.text, 'html.parser')
-            captcha_url = 'https://irs.thsrc.com.tw' + \
-                page.find('img', class_='captcha-img')['src']
-            # 優先從響應 cookies 取得，否則從 session cookies 取得
-            jsessionid = res.cookies.get('JSESSIONID') or self.session.cookies.get('JSESSIONID')
-            self.logger.info(f"Session ID: {jsessionid[:20]}..." if jsessionid else "No session ID")
-            return jsessionid, captcha_url
-        else:
-            self.logger.error(res.text)
-            sys.exit(1)
+                if res.status_code == 200:
+                    page = BeautifulSoup(res.text, 'html.parser')
+                    captcha_img = page.find('img', class_='captcha-img')
+                    if not captcha_img:
+                        self.logger.warning("找不到驗證碼圖片，重試中...")
+                        time.sleep(2)
+                        continue
+                    captcha_url = 'https://irs.thsrc.com.tw' + captcha_img['src']
+                    # 優先從響應 cookies 取得，否則從 session cookies 取得
+                    jsessionid = res.cookies.get('JSESSIONID') or self.session.cookies.get('JSESSIONID')
+                    self.logger.info(f"Session ID: {jsessionid[:20]}..." if jsessionid else "No session ID")
+                    return jsessionid, captcha_url
+                else:
+                    self.logger.warning(f"HTTP {res.status_code}，重試中...")
+                    time.sleep(2)
+            except Exception as e:
+                self.logger.warning(f"連線失敗: {e}")
+                if attempt < max_retries:
+                    wait_time = attempt * 3  # 指數退避
+                    self.logger.info(f"等待 {wait_time} 秒後重試...")
+                    time.sleep(wait_time)
+                else:
+                    self.logger.error("❌ 連線高鐵網站失敗，請稍後再試")
+                    sys.exit(1)
+
+        self.logger.error("❌ 多次重試後仍無法連線")
+        sys.exit(1)
 
     def update_captcha(self, jsessionid):
         """Get security code from captcha url"""
@@ -388,17 +408,34 @@ class THSRC(BaseService):
 
         form_url = self.config['api']['confirm_train'].format(
             jsessionid=jsessionid)
-        res = self.session.post(
-            form_url,
-            headers=headers,
-            data=data,
-        )
 
-        if res.status_code == 200:
-            return res
-        else:
-            self.logger.error(res.text)
-            sys.exit(1)
+        max_retries = 3
+        for attempt in range(1, max_retries + 1):
+            try:
+                res = self.session.post(
+                    form_url,
+                    headers=headers,
+                    data=data,
+                    timeout=60,
+                )
+
+                if res.status_code == 200:
+                    return res
+                else:
+                    self.logger.warning(f"HTTP {res.status_code}，重試中...")
+                    time.sleep(2)
+            except Exception as e:
+                self.logger.warning(f"查詢失敗: {e}")
+                if attempt < max_retries:
+                    wait_time = attempt * 2
+                    self.logger.info(f"等待 {wait_time} 秒後重試...")
+                    time.sleep(wait_time)
+                else:
+                    self.logger.error(res.text if 'res' in dir() else str(e))
+                    sys.exit(1)
+
+        self.logger.error("❌ 多次重試後查詢失敗")
+        sys.exit(1)
 
     def confirm_train(self, html_page, default_value: int = 1):
         """2. Confirm train"""
