@@ -6,3 +6,5 @@ httpx
 rtoml
 validators
 pyperclip
+selenium
+webdriver-manager

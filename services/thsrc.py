@@ -16,6 +16,19 @@ from services.base_service import BaseService
 from configs.config import user_agent
 from utils.validate import check_roc_id, check_tax_id
 
+# Selenium imports
+try:
+    from selenium import webdriver
+    from selenium.webdriver.chrome.service import Service
+    from selenium.webdriver.chrome.options import Options
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    from webdriver_manager.chrome import ChromeDriverManager
+    SELENIUM_AVAILABLE = True
+except ImportError:
+    SELENIUM_AVAILABLE = False
+
 
 class THSRC(BaseService):
     """
@@ -304,14 +317,114 @@ class THSRC(BaseService):
         
         return None
 
+    def _create_chrome_driver(self):
+        """建立 Chrome WebDriver"""
+        chrome_options = Options()
+        chrome_options.add_argument('--headless')  # 無頭模式
+        chrome_options.add_argument('--no-sandbox')
+        chrome_options.add_argument('--disable-dev-shm-usage')
+        chrome_options.add_argument('--disable-gpu')
+        chrome_options.add_argument('--window-size=1920,1080')
+        chrome_options.add_argument(f'--user-agent={user_agent}')
+        chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+        chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
+        chrome_options.add_experimental_option('useAutomationExtension', False)
+
+        try:
+            # 嘗試使用系統安裝的 Chrome
+            service = Service('/usr/bin/chromedriver')
+            driver = webdriver.Chrome(service=service, options=chrome_options)
+        except Exception:
+            # 使用 webdriver-manager 自動下載
+            service = Service(ChromeDriverManager().install())
+            driver = webdriver.Chrome(service=service, options=chrome_options)
+
+        # 隱藏 webdriver 特徵
+        driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
+            'source': '''
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => undefined
+                })
+            '''
+        })
+        return driver
+
     def get_jsessionid(self, max_retries=3):
         """Get jsessionid and security code from captcha url"""
         self.logger.info("\nLoading...")
 
+        # 優先使用 Selenium（更能繞過反爬蟲）
+        if SELENIUM_AVAILABLE:
+            return self._get_jsessionid_selenium(max_retries)
+        else:
+            return self._get_jsessionid_httpx(max_retries)
+
+    def _get_jsessionid_selenium(self, max_retries=3):
+        """使用 Selenium 取得 jsessionid"""
+        for attempt in range(1, max_retries + 1):
+            driver = None
+            try:
+                self.logger.info(f"使用 Chrome 連線高鐵網站... (嘗試 {attempt}/{max_retries})")
+                driver = self._create_chrome_driver()
+
+                # 訪問訂票頁面
+                driver.get(self.config['page']['reservation'])
+
+                # 等待驗證碼圖片出現
+                WebDriverWait(driver, 30).until(
+                    EC.presence_of_element_located((By.CLASS_NAME, 'captcha-img'))
+                )
+
+                # 取得 JSESSIONID
+                cookies = driver.get_cookies()
+                jsessionid = None
+                for cookie in cookies:
+                    if cookie['name'] == 'JSESSIONID':
+                        jsessionid = cookie['value']
+                        break
+
+                # 取得驗證碼圖片 URL
+                captcha_img = driver.find_element(By.CLASS_NAME, 'captcha-img')
+                captcha_url = captcha_img.get_attribute('src')
+
+                if jsessionid and captcha_url:
+                    self.logger.info(f"✅ Session ID: {jsessionid[:20]}...")
+
+                    # 將 cookies 同步到 httpx session
+                    for cookie in cookies:
+                        self.session.cookies.set(
+                            cookie['name'],
+                            cookie['value'],
+                            domain=cookie.get('domain', 'irs.thsrc.com.tw')
+                        )
+
+                    driver.quit()
+                    return jsessionid, captcha_url
+                else:
+                    self.logger.warning("找不到 session 或驗證碼，重試中...")
+
+            except Exception as e:
+                self.logger.warning(f"Selenium 連線失敗: {e}")
+                if attempt < max_retries:
+                    wait_time = attempt * 3
+                    self.logger.info(f"等待 {wait_time} 秒後重試...")
+                    time.sleep(wait_time)
+            finally:
+                if driver:
+                    try:
+                        driver.quit()
+                    except:
+                        pass
+
+        self.logger.error("❌ 多次重試後仍無法連線")
+        sys.exit(1)
+
+    def _get_jsessionid_httpx(self, max_retries=3):
+        """使用 httpx 取得 jsessionid（備用方案）"""
         # 清除舊的 JSESSIONID，確保取得新的 session
         self.session.cookies.delete('JSESSIONID', domain='irs.thsrc.com.tw')
 
-        # 設置 Cookie 同意（高鐵網站現在需要先同意 Cookie 政策）
+        # 設置 Cookie 同意
         self.session.cookies.set('cookieAccepted', 'true', domain='irs.thsrc.com.tw')
         self.session.cookies.set('isShowCookiePolicy', 'N', domain='irs.thsrc.com.tw')
 
@@ -328,7 +441,6 @@ class THSRC(BaseService):
                         time.sleep(2)
                         continue
                     captcha_url = 'https://irs.thsrc.com.tw' + captcha_img['src']
-                    # 優先從響應 cookies 取得，否則從 session cookies 取得
                     jsessionid = res.cookies.get('JSESSIONID') or self.session.cookies.get('JSESSIONID')
                     self.logger.info(f"Session ID: {jsessionid[:20]}..." if jsessionid else "No session ID")
                     return jsessionid, captcha_url
@@ -338,7 +450,7 @@ class THSRC(BaseService):
             except Exception as e:
                 self.logger.warning(f"連線失敗: {e}")
                 if attempt < max_retries:
-                    wait_time = attempt * 3  # 指數退避
+                    wait_time = attempt * 3
                     self.logger.info(f"等待 {wait_time} 秒後重試...")
                     time.sleep(wait_time)
                 else:
