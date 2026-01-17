@@ -327,13 +327,29 @@ class THSRC(BaseService):
         chrome_options.add_argument('--disable-software-rasterizer')
         chrome_options.add_argument('--disable-extensions')
         chrome_options.add_argument('--disable-setuid-sandbox')
-        chrome_options.add_argument('--single-process')  # Docker 單進程模式，避免 renderer 超時
         chrome_options.add_argument('--window-size=1920,1080')
         chrome_options.add_argument(f'--user-agent={user_agent}')
         chrome_options.add_argument('--disable-blink-features=AutomationControlled')
 
-        # 設定頁面載入策略為 eager（DOM ready 即可，不等待所有資源）
-        chrome_options.page_load_strategy = 'eager'
+        # Docker 容器穩定性選項（解決 renderer timeout）
+        chrome_options.add_argument('--no-zygote')  # 關鍵：避免 zygote 進程問題
+        chrome_options.add_argument('--disable-background-networking')
+        chrome_options.add_argument('--disable-default-apps')
+        chrome_options.add_argument('--disable-hang-monitor')
+        chrome_options.add_argument('--disable-popup-blocking')
+        chrome_options.add_argument('--disable-prompt-on-repost')
+        chrome_options.add_argument('--disable-sync')
+        chrome_options.add_argument('--disable-translate')
+        chrome_options.add_argument('--no-first-run')
+        chrome_options.add_argument('--disable-features=VizDisplayCompositor')
+        chrome_options.add_argument('--remote-debugging-port=9222')
+
+        # 使用 /tmp 而非 /dev/shm（解決 Docker 共享記憶體不足問題）
+        chrome_options.add_argument('--disk-cache-dir=/tmp/chrome-cache')
+        chrome_options.add_argument('--crash-dumps-dir=/tmp/chrome-crashes')
+
+        # 設定頁面載入策略為 none（不等待頁面載入，手動等待元素）
+        chrome_options.page_load_strategy = 'none'
 
         # 設定 Chromium 瀏覽器路徑（Debian 套件）
         chromium_paths = [
