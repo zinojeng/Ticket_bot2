@@ -320,13 +320,20 @@ class THSRC(BaseService):
     def _create_chrome_driver(self):
         """建立 Chrome WebDriver"""
         chrome_options = Options()
-        chrome_options.add_argument('--headless')  # 無頭模式
+        chrome_options.add_argument('--headless=new')  # 新版 headless 模式（Chrome 109+）
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
         chrome_options.add_argument('--disable-gpu')
+        chrome_options.add_argument('--disable-software-rasterizer')
+        chrome_options.add_argument('--disable-extensions')
+        chrome_options.add_argument('--disable-setuid-sandbox')
+        chrome_options.add_argument('--single-process')  # Docker 單進程模式，避免 renderer 超時
         chrome_options.add_argument('--window-size=1920,1080')
         chrome_options.add_argument(f'--user-agent={user_agent}')
         chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+
+        # 設定頁面載入策略為 eager（DOM ready 即可，不等待所有資源）
+        chrome_options.page_load_strategy = 'eager'
 
         # 設定 Chromium 瀏覽器路徑（Debian 套件）
         chromium_paths = [
