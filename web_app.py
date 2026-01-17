@@ -814,7 +814,7 @@ HTML_TEMPLATE = Template('''<!DOCTYPE html>
 
             const preset = presetsData[presetName];
 
-            // 填入基本欄位
+            // 填入個人資料
             if (preset.id) {
                 document.getElementById('personalId').value = preset.id;
             }
@@ -823,6 +823,46 @@ HTML_TEMPLATE = Template('''<!DOCTYPE html>
             }
             if (preset.email !== undefined) {
                 document.getElementById('email').value = preset.email || '';
+            }
+            if (preset.tgo_id !== undefined) {
+                document.getElementById('tgoId').value = preset.tgo_id || '';
+            }
+            if (preset.tax_id !== undefined) {
+                document.getElementById('taxId').value = preset.tax_id || '';
+            }
+
+            // 填入行程資料
+            if (preset.start_station) {
+                document.getElementById('startStation').value = preset.start_station;
+            }
+            if (preset.dest_station) {
+                document.getElementById('destStation').value = preset.dest_station;
+            }
+            if (preset.outbound_time) {
+                document.getElementById('outboundTime').value = preset.outbound_time;
+            }
+            if (preset.car_type) {
+                document.getElementById('carType').value = preset.car_type;
+            }
+            if (preset.preferred_seat !== undefined) {
+                document.getElementById('preferredSeat').value = preset.preferred_seat || '';
+            }
+            if (preset.train_no !== undefined) {
+                document.getElementById('trainNo').value = preset.train_no || '';
+            }
+
+            // 填入票種數量
+            if (preset.adult !== undefined) {
+                document.getElementById('adult').value = preset.adult;
+            }
+            if (preset.child !== undefined) {
+                document.getElementById('child').value = preset.child;
+            }
+            if (preset.teenager !== undefined) {
+                document.getElementById('teenager').value = preset.teenager;
+            }
+            if (preset.college !== undefined) {
+                document.getElementById('college').value = preset.college;
             }
 
             // 處理身心障礙身分證
@@ -833,8 +873,8 @@ HTML_TEMPLATE = Template('''<!DOCTYPE html>
                 document.getElementById('disabledIdsGroup').style.display = 'block';
             } else {
                 document.getElementById('disabledIds').value = '';
-                document.getElementById('disabled').value = 0;
-                document.getElementById('disabledIdsGroup').style.display = 'none';
+                document.getElementById('disabled').value = preset.disabled || 0;
+                document.getElementById('disabledIdsGroup').style.display = (preset.disabled > 0) ? 'block' : 'none';
             }
 
             // 處理敬老身分證
@@ -845,8 +885,8 @@ HTML_TEMPLATE = Template('''<!DOCTYPE html>
                 document.getElementById('elderIdsGroup').style.display = 'block';
             } else {
                 document.getElementById('elderIds').value = '';
-                document.getElementById('elder').value = 0;
-                document.getElementById('elderIdsGroup').style.display = 'none';
+                document.getElementById('elder').value = preset.elder || 0;
+                document.getElementById('elderIdsGroup').style.display = (preset.elder > 0) ? 'block' : 'none';
             }
         }
 
