@@ -327,26 +327,40 @@ class THSRC(BaseService):
         chrome_options.add_argument('--window-size=1920,1080')
         chrome_options.add_argument(f'--user-agent={user_agent}')
         chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-        chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
-        chrome_options.add_experimental_option('useAutomationExtension', False)
 
-        try:
-            # 嘗試使用系統安裝的 Chrome
-            service = Service('/usr/bin/chromedriver')
-            driver = webdriver.Chrome(service=service, options=chrome_options)
-        except Exception:
-            # 使用 webdriver-manager 自動下載
-            service = Service(ChromeDriverManager().install())
-            driver = webdriver.Chrome(service=service, options=chrome_options)
+        # 取得 chromedriver 路徑（優先使用環境變數）
+        chromedriver_path = os.environ.get('CHROMEDRIVER_PATH', '/usr/bin/chromedriver')
 
-        # 隱藏 webdriver 特徵
-        driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
-            'source': '''
-                Object.defineProperty(navigator, 'webdriver', {
-                    get: () => undefined
-                })
-            '''
-        })
+        # 嘗試不同的 chromedriver 路徑
+        possible_paths = [
+            chromedriver_path,
+            '/usr/bin/chromedriver',
+            '/usr/local/bin/chromedriver',
+        ]
+
+        driver = None
+        last_error = None
+
+        for path in possible_paths:
+            if os.path.exists(path):
+                try:
+                    self.logger.info(f"嘗試使用 chromedriver: {path}")
+                    service = Service(path)
+                    driver = webdriver.Chrome(service=service, options=chrome_options)
+                    break
+                except Exception as e:
+                    last_error = e
+                    self.logger.warning(f"chromedriver {path} 失敗: {e}")
+
+        if driver is None:
+            # 最後嘗試 webdriver-manager
+            try:
+                self.logger.info("嘗試使用 webdriver-manager...")
+                service = Service(ChromeDriverManager().install())
+                driver = webdriver.Chrome(service=service, options=chrome_options)
+            except Exception as e:
+                raise Exception(f"無法啟動 Chrome: {last_error or e}")
+
         return driver
 
     def get_jsessionid(self, max_retries=3):

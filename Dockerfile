@@ -2,17 +2,11 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# 安裝 Chrome 和相關依賴
+# 安裝 Chromium 和 ChromeDriver（版本自動匹配）
 RUN apt-get update && apt-get install -y \
-    wget \
-    gnupg \
-    unzip \
-    curl \
+    chromium \
+    chromium-driver \
     --no-install-recommends \
-    && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list \
-    && apt-get update \
-    && apt-get install -y google-chrome-stable --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -24,8 +18,8 @@ RUN pip install --no-cache-dir -r requirements.txt python-dotenv
 COPY . .
 
 # 設定 Chrome 環境變數
-ENV CHROME_BIN=/usr/bin/google-chrome
-ENV DISPLAY=:99
+ENV CHROME_BIN=/usr/bin/chromium
+ENV CHROMEDRIVER_PATH=/usr/bin/chromedriver
 
 # 暴露 PORT
 EXPOSE 8080
