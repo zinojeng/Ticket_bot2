@@ -1,5 +1,6 @@
 FROM python:3.11-slim
 
+# 強制重建 v2
 WORKDIR /app
 
 # 安裝 Chromium 和 ChromeDriver（版本自動匹配）
