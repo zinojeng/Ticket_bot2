@@ -1,15 +1,20 @@
 FROM python:3.11-slim
 
-# 強制重建 v2
 WORKDIR /app
 
+# Cache buster - 改變這個值強制重建
+ARG CACHEBUST=3
+
 # 安裝 Chromium 和 ChromeDriver（版本自動匹配）
-RUN apt-get update && apt-get install -y \
+RUN echo "Cache bust: $CACHEBUST" && \
+    apt-get update && apt-get install -y \
     chromium \
     chromium-driver \
     --no-install-recommends \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && chromium --version \
+    && chromedriver --version
 
 # 安裝 Python 依賴
 COPY requirements.txt .
