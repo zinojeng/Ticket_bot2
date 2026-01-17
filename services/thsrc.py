@@ -401,10 +401,15 @@ class THSRC(BaseService):
                 driver = self._create_chrome_driver()
 
                 # 訪問訂票頁面
+                self.logger.info(f"正在載入: {self.config['page']['reservation']}")
+                driver.set_page_load_timeout(60)
                 driver.get(self.config['page']['reservation'])
+                self.logger.info(f"頁面標題: {driver.title}")
+                self.logger.info(f"目前網址: {driver.current_url}")
 
                 # 等待驗證碼圖片出現
-                WebDriverWait(driver, 30).until(
+                self.logger.info("等待驗證碼圖片...")
+                WebDriverWait(driver, 60).until(
                     EC.presence_of_element_located((By.CLASS_NAME, 'captcha-img'))
                 )
 
@@ -438,6 +443,16 @@ class THSRC(BaseService):
 
             except Exception as e:
                 self.logger.warning(f"Selenium 連線失敗: {e}")
+                # 嘗試輸出頁面資訊以便偵錯
+                if driver:
+                    try:
+                        self.logger.info(f"錯誤時的網址: {driver.current_url}")
+                        self.logger.info(f"錯誤時的標題: {driver.title}")
+                        # 輸出頁面部分內容
+                        page_source = driver.page_source[:500] if driver.page_source else "無內容"
+                        self.logger.info(f"頁面內容預覽: {page_source}")
+                    except:
+                        pass
                 if attempt < max_retries:
                     wait_time = attempt * 3
                     self.logger.info(f"等待 {wait_time} 秒後重試...")
