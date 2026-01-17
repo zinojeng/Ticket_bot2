@@ -25,6 +25,14 @@ if not APP_PASSWORD:
     # 開發環境可以繼續運行，但會提示
     APP_PASSWORD = None  # 將在登入時檢查
 
+def get_presets():
+    """從環境變數讀取預設資料"""
+    presets_json = os.environ.get('PRESETS', '{}')
+    try:
+        return json.loads(presets_json)
+    except json.JSONDecodeError:
+        return {}
+
 # Session 管理
 active_sessions = {}  # token -> expiry_time
 
@@ -535,6 +543,28 @@ HTML_TEMPLATE = Template('''<!DOCTYPE html>
             font-size: 0.875rem;
         }
         
+        .preset-section {
+            background: linear-gradient(135deg, rgba(227, 82, 5, 0.1), rgba(227, 82, 5, 0.05));
+            border: 1px solid rgba(227, 82, 5, 0.3);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .preset-section .form-group {
+            margin-bottom: 0;
+        }
+
+        .preset-section select {
+            background: var(--secondary);
+            border-color: rgba(227, 82, 5, 0.5);
+        }
+
+        .preset-section select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(227, 82, 5, 0.3);
+        }
+
         .hidden { display: none !important; }
         
         .spinner {
@@ -560,7 +590,16 @@ HTML_TEMPLATE = Template('''<!DOCTYPE html>
         
         <form id="bookingForm" class="card">
             <h2 class="card-title">📝 訂票資訊</h2>
-            
+
+            <div class="preset-section" id="presetSection" style="display:none;">
+                <div class="form-group">
+                    <label for="presetSelect">📋 快速載入預設資料</label>
+                    <select id="presetSelect" name="presetSelect">
+                        <option value="">不使用預設</option>
+                    </select>
+                </div>
+            </div>
+
             <div class="form-grid">
                 <div class="form-group">
                     <label for="startStation">起站</label>
@@ -744,7 +783,81 @@ HTML_TEMPLATE = Template('''<!DOCTYPE html>
         });
         
         let pollingInterval = null;
-        
+        let presetsData = {};
+
+        // 載入預設資料
+        async function loadPresets() {
+            try {
+                const response = await fetch('/api/presets');
+                const data = await response.json();
+                presetsData = data.presets || {};
+
+                const presetNames = Object.keys(presetsData);
+                if (presetNames.length > 0) {
+                    const select = document.getElementById('presetSelect');
+                    presetNames.forEach(name => {
+                        const option = document.createElement('option');
+                        option.value = name;
+                        option.textContent = name;
+                        select.appendChild(option);
+                    });
+                    document.getElementById('presetSection').style.display = 'block';
+                }
+            } catch (err) {
+                console.error('載入預設資料失敗:', err);
+            }
+        }
+
+        // 套用預設資料
+        function applyPreset(presetName) {
+            if (!presetName || !presetsData[presetName]) return;
+
+            const preset = presetsData[presetName];
+
+            // 填入基本欄位
+            if (preset.id) {
+                document.getElementById('personalId').value = preset.id;
+            }
+            if (preset.phone) {
+                document.getElementById('phone').value = preset.phone;
+            }
+            if (preset.email !== undefined) {
+                document.getElementById('email').value = preset.email || '';
+            }
+
+            // 處理身心障礙身分證
+            const disabledIds = preset.disabled_ids || [];
+            if (disabledIds.length > 0) {
+                document.getElementById('disabledIds').value = disabledIds.join('\\n');
+                document.getElementById('disabled').value = disabledIds.length;
+                document.getElementById('disabledIdsGroup').style.display = 'block';
+            } else {
+                document.getElementById('disabledIds').value = '';
+                document.getElementById('disabled').value = 0;
+                document.getElementById('disabledIdsGroup').style.display = 'none';
+            }
+
+            // 處理敬老身分證
+            const elderIds = preset.elder_ids || [];
+            if (elderIds.length > 0) {
+                document.getElementById('elderIds').value = elderIds.join('\\n');
+                document.getElementById('elder').value = elderIds.length;
+                document.getElementById('elderIdsGroup').style.display = 'block';
+            } else {
+                document.getElementById('elderIds').value = '';
+                document.getElementById('elder').value = 0;
+                document.getElementById('elderIdsGroup').style.display = 'none';
+            }
+        }
+
+        // 預設資料選擇事件
+        document.getElementById('presetSelect').addEventListener('change', function() {
+            applyPreset(this.value);
+        });
+
+        // 頁面載入時載入預設資料
+        loadPresets();
+
         document.getElementById('bookingForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
@@ -951,6 +1064,8 @@ class TicketBotHandler(BaseHTTPRequestHandler):
             self.serve_html()
         elif parsed.path == "/api/status":
             self.serve_status()
+        elif parsed.path == "/api/presets":
+            self.serve_presets()
         else:
             self.send_error(404)
     
@@ -1048,6 +1163,11 @@ class TicketBotHandler(BaseHTTPRequestHandler):
             "result": app_state.get("result")
         }
         self.send_json(safe_state)
+
+    def serve_presets(self):
+        """回傳預設資料列表"""
+        presets = get_presets()
+        self.send_json({"presets": presets})
     
     def handle_start(self):
         content_length = int(self.headers.get('Content-Length', 0))
