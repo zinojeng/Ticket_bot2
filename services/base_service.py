@@ -49,11 +49,19 @@ class BaseService(object):
         self.session = httpx.Client(
             headers={
                 'User-Agent': user_agent,
-                "Accept": 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                "Accept-Language": 'zh-TW,zh;q=0.8,en-US;q=0.5,en;q=0.3',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+                'Sec-Fetch-User': '?1',
+                'Cache-Control': 'max-age=0',
             },
             follow_redirects=True,
-            timeout=httpx.Timeout(300.0, connect=60.0),  # 增加超時時間以應對跨區域網路
+            timeout=httpx.Timeout(180.0, connect=30.0, read=120.0),  # 增加讀取超時到 120 秒
             proxy=proxy_url,
         )
 
