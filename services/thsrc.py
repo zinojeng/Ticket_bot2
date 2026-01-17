@@ -429,10 +429,13 @@ class THSRC(BaseService):
         """Get jsessionid and security code from captcha url"""
         self.logger.info("\nLoading...")
 
-        # 優先使用 Selenium（更能繞過反爬蟲）
-        if SELENIUM_AVAILABLE:
+        # Docker 環境使用 Selenium（繞過反爬蟲）
+        # 本地環境使用 httpx（輕量、不需要 Chrome）
+        if self._is_docker() and SELENIUM_AVAILABLE:
+            self.logger.info("🐳 Docker 環境，使用 Selenium")
             return self._get_jsessionid_selenium(max_retries)
         else:
+            self.logger.info("💻 使用 httpx 連線")
             return self._get_jsessionid_httpx(max_retries)
 
     def _get_jsessionid_selenium(self, max_retries=3):
