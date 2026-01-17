@@ -16,19 +16,6 @@ from services.base_service import BaseService
 from configs.config import user_agent
 from utils.validate import check_roc_id, check_tax_id
 
-# Selenium imports
-try:
-    from selenium import webdriver
-    from selenium.webdriver.chrome.service import Service
-    from selenium.webdriver.chrome.options import Options
-    from selenium.webdriver.common.by import By
-    from selenium.webdriver.support.ui import WebDriverWait
-    from selenium.webdriver.support import expected_conditions as EC
-    from webdriver_manager.chrome import ChromeDriverManager
-    SELENIUM_AVAILABLE = True
-except ImportError:
-    SELENIUM_AVAILABLE = False
-
 
 class THSRC(BaseService):
     """
@@ -230,7 +217,7 @@ class THSRC(BaseService):
         return preferred_seat
 
     def get_security_code(self, captcha_url):
-        """OCR captcha using holey.cc (專門為高鐵驗證碼訓練的模型)"""
+        """OCR captcha - 先用 holey.cc 解析，再用 OpenAI 驗證修正"""
         import httpx
         
         try:
@@ -240,26 +227,44 @@ class THSRC(BaseService):
                 return None
             
             base64_str = base64.b64encode(res.content).decode("utf-8")
+            holey_result = None
             
-            # 使用 holey.cc OCR（專門為高鐵驗證碼訓練）
-            base64_url_safe = base64_str.replace('+', '-').replace('/', '_').replace('=', '')
-            data = {'base64_str': base64_url_safe}
-            res = self.session.post(
-                self.config['api']['captcha_ocr'], json=data, timeout=30)
-            if res.status_code == 200:
-                security_code = res.json()['data']
-                self.logger.info("+ Security code: %s", security_code)
-                return security_code
-            else:
-                self.logger.error(res.text)
-                return None
+            # Step 1: 使用 holey.cc OCR（專門為高鐵驗證碼訓練）
+            try:
+                base64_url_safe = base64_str.replace('+', '-').replace('/', '_').replace('=', '')
+                data = {'base64_str': base64_url_safe}
+                with httpx.Client(timeout=30) as ocr_client:
+                    ocr_res = ocr_client.post(
+                        self.config['api']['captcha_ocr'], json=data)
+                if ocr_res.status_code == 200:
+                    holey_result = ocr_res.json().get('data')
+                    self.logger.info("+ holey.cc 識別: %s", holey_result)
+            except Exception as e:
+                self.logger.warning(f"holey.cc OCR 失敗: {e}")
+            
+            # Step 2: 使用 OpenAI 驗證或修正（如果有設定 API Key）
+            openai_api_key = os.getenv('OPENAI_API_KEY')
+            if openai_api_key:
+                final_result = self._ocr_with_openai_verify(
+                    base64_str, openai_api_key, holey_result
+                )
+                if final_result:
+                    self.logger.info("+ 最終驗證碼: %s", final_result)
+                    return final_result
+            
+            # 如果沒有 OpenAI 或 OpenAI 失敗，返回 holey.cc 結果
+            if holey_result:
+                self.logger.info("+ Security code: %s", holey_result)
+                return holey_result
+            
+            return None
                 
         except (httpx.TimeoutException, httpx.RequestError) as e:
             self.logger.warning(f"⚠️ 網路超時，重試中... ({e})")
             return None
     
-    def _ocr_with_openai(self, base64_image, api_key):
-        """Use OpenAI GPT-4 Vision to recognize captcha"""
+    def _ocr_with_openai_verify(self, base64_image, api_key, holey_result=None):
+        """Use OpenAI GPT-4 Vision to verify/correct captcha with holey.cc reference"""
         import httpx
         
         try:
@@ -268,19 +273,48 @@ class THSRC(BaseService):
                 "Authorization": f"Bearer {api_key}"
             }
             
+            # 根據是否有 holey.cc 結果來調整 prompt
+            if holey_result:
+                system_prompt = """You are a CAPTCHA recognition expert.
+Another OCR system has identified a result. Verify if it's correct.
+If correct, output the same result. If wrong, correct it.
+
+STRICT RULES:
+- CAPTCHA contains ONLY uppercase letters (A-Z) and digits (0-9)
+- Output EXACTLY 4 characters, nothing else
+- NO explanation, NO punctuation, NO spaces
+- Common confusions: 0/O, 1/I, 2/Z, 5/S, 8/B, 6/G
+
+Example output: AB12"""
+                
+                user_text = f"OCR result: {holey_result}\nVerify and output 4 characters only:"
+            else:
+                system_prompt = """You are a CAPTCHA recognition expert.
+Identify the 4 characters in the image.
+
+STRICT RULES:
+- CAPTCHA contains ONLY uppercase letters (A-Z) and digits (0-9)
+- Output EXACTLY 4 characters, nothing else
+- NO explanation, NO punctuation, NO spaces
+- Common confusions: 0/O, 1/I, 2/Z, 5/S, 8/B, 6/G
+
+Example output: AB12"""
+                
+                user_text = "Identify 4 characters, output only:"
+            
             payload = {
-                "model": "gpt-4o",  # 使用更強的模型
+                "model": "gpt-4o",
                 "messages": [
                     {
                         "role": "system",
-                        "content": "你是一個專業的驗證碼識別專家。請仔細識別圖片中的4個字元。只輸出4個字元，不要任何其他文字。注意：驗證碼只包含大寫英文字母和數字，不包含小寫字母。常見混淆：0和O、1和I、2和Z、5和S、8和B。"
+                        "content": system_prompt
                     },
                     {
                         "role": "user",
                         "content": [
                             {
                                 "type": "text",
-                                "text": "請識別這個驗證碼圖片中的4個字元，只輸出字元本身："
+                                "text": user_text
                             },
                             {
                                 "type": "image_url",
@@ -304,221 +338,35 @@ class THSRC(BaseService):
             
             if response.status_code == 200:
                 result = response.json()
-                code = result['choices'][0]['message']['content'].strip()
-                # 清理結果，只保留英數字元（保留原始大小寫）
-                code = ''.join(c for c in code if c.isalnum())[:4]
+                raw_code = result['choices'][0]['message']['content'].strip()
+                # 只保留英文字母(A-Z, a-z)和數字(0-9)，過濾掉中文等其他字元
+                code = ''.join(c for c in raw_code if c.isascii() and c.isalnum()).upper()
+                
+                # 驗證結果：必須是 4 個字元
                 if len(code) == 4:
-                    return code  # 不轉換大小寫
+                    if holey_result and code != holey_result.upper():
+                        self.logger.info(f"🔧 OpenAI 修正: {holey_result} → {code}")
+                    return code
+                else:
+                    # OpenAI 返回無效結果，使用 holey.cc 原始結果
+                    self.logger.warning(f"⚠️ OpenAI 返回無效結果: '{raw_code}'，使用 holey.cc 結果")
+                    return holey_result.upper() if holey_result else None
             else:
                 self.logger.warning(f"OpenAI API 錯誤: {response.status_code}")
                 
         except Exception as e:
-            self.logger.warning(f"OpenAI OCR 失敗: {e}")
+            self.logger.warning(f"OpenAI 驗證失敗: {e}")
         
         return None
-
-    def _is_docker(self):
-        """偵測是否在 Docker 容器中執行"""
-        # 檢查 /.dockerenv 檔案
-        if os.path.exists('/.dockerenv'):
-            return True
-        # 檢查 cgroup（Linux 容器）
-        try:
-            with open('/proc/1/cgroup', 'r') as f:
-                return 'docker' in f.read()
-        except:
-            pass
-        return False
-
-    def _create_chrome_driver(self):
-        """建立 Chrome WebDriver"""
-        chrome_options = Options()
-        is_docker = self._is_docker()
-
-        # 基本選項（適用所有環境）
-        chrome_options.add_argument('--headless=new')  # 新版 headless 模式（Chrome 109+）
-        chrome_options.add_argument('--no-sandbox')
-        chrome_options.add_argument('--disable-dev-shm-usage')
-        chrome_options.add_argument('--disable-gpu')
-        chrome_options.add_argument('--window-size=1920,1080')
-        chrome_options.add_argument(f'--user-agent={user_agent}')
-        chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-
-        if is_docker:
-            self.logger.info("🐳 偵測到 Docker 環境，套用容器優化設定")
-            # Docker 容器專用選項（解決 renderer timeout）
-            chrome_options.add_argument('--disable-software-rasterizer')
-            chrome_options.add_argument('--disable-extensions')
-            chrome_options.add_argument('--disable-setuid-sandbox')
-            chrome_options.add_argument('--no-zygote')  # 關鍵：避免 zygote 進程問題
-            chrome_options.add_argument('--disable-background-networking')
-            chrome_options.add_argument('--disable-default-apps')
-            chrome_options.add_argument('--disable-hang-monitor')
-            chrome_options.add_argument('--disable-popup-blocking')
-            chrome_options.add_argument('--disable-prompt-on-repost')
-            chrome_options.add_argument('--disable-sync')
-            chrome_options.add_argument('--disable-translate')
-            chrome_options.add_argument('--no-first-run')
-            chrome_options.add_argument('--disable-features=VizDisplayCompositor')
-            chrome_options.add_argument('--remote-debugging-port=9222')
-            # 使用 /tmp 而非 /dev/shm
-            chrome_options.add_argument('--disk-cache-dir=/tmp/chrome-cache')
-            chrome_options.add_argument('--crash-dumps-dir=/tmp/chrome-crashes')
-            # Docker 環境使用 eager 策略
-            chrome_options.page_load_strategy = 'eager'
-        else:
-            self.logger.info("💻 本地環境，使用標準設定")
-            # 本地環境使用正常頁面載入策略
-            chrome_options.page_load_strategy = 'normal'
-
-        # 設定 Chromium 瀏覽器路徑（Debian 套件）
-        chromium_paths = [
-            '/usr/bin/chromium',
-            '/usr/bin/chromium-browser',
-            '/usr/bin/google-chrome',
-        ]
-        for chromium_path in chromium_paths:
-            if os.path.exists(chromium_path):
-                self.logger.info(f"使用瀏覽器: {chromium_path}")
-                chrome_options.binary_location = chromium_path
-                break
-
-        # 取得 chromedriver 路徑
-        possible_driver_paths = [
-            os.environ.get('CHROMEDRIVER_PATH', ''),
-            '/usr/bin/chromedriver',
-            '/usr/lib/chromium/chromedriver',
-            '/usr/local/bin/chromedriver',
-        ]
-
-        driver = None
-        last_error = None
-
-        # 列出可用的路徑
-        self.logger.info("檢查可用的 chromedriver 路徑...")
-        for path in possible_driver_paths:
-            if path and os.path.exists(path):
-                self.logger.info(f"  ✓ 找到: {path}")
-            elif path:
-                self.logger.info(f"  ✗ 不存在: {path}")
-
-        for path in possible_driver_paths:
-            if path and os.path.exists(path):
-                try:
-                    self.logger.info(f"嘗試使用 chromedriver: {path}")
-                    service = Service(path)
-                    driver = webdriver.Chrome(service=service, options=chrome_options)
-                    self.logger.info("✅ Chrome 啟動成功")
-                    break
-                except Exception as e:
-                    last_error = e
-                    self.logger.warning(f"chromedriver {path} 失敗: {e}")
-
-        if driver is None:
-            # 最後嘗試 webdriver-manager
-            try:
-                self.logger.info("嘗試使用 webdriver-manager...")
-                service = Service(ChromeDriverManager().install())
-                driver = webdriver.Chrome(service=service, options=chrome_options)
-            except Exception as e:
-                raise Exception(f"無法啟動 Chrome: {last_error or e}")
-
-        return driver
 
     def get_jsessionid(self, max_retries=3):
         """Get jsessionid and security code from captcha url"""
         self.logger.info("\nLoading...")
 
-        # Docker 環境使用 Selenium（繞過反爬蟲）
-        # 本地環境使用 httpx（輕量、不需要 Chrome）
-        if self._is_docker() and SELENIUM_AVAILABLE:
-            self.logger.info("🐳 Docker 環境，使用 Selenium")
-            return self._get_jsessionid_selenium(max_retries)
-        else:
-            self.logger.info("💻 使用 httpx 連線")
-            return self._get_jsessionid_httpx(max_retries)
-
-    def _get_jsessionid_selenium(self, max_retries=3):
-        """使用 Selenium 取得 jsessionid"""
-        for attempt in range(1, max_retries + 1):
-            driver = None
-            try:
-                self.logger.info(f"使用 Chrome 連線高鐵網站... (嘗試 {attempt}/{max_retries})")
-                driver = self._create_chrome_driver()
-
-                # 訪問訂票頁面
-                self.logger.info(f"正在載入: {self.config['page']['reservation']}")
-                driver.set_page_load_timeout(60)
-                driver.get(self.config['page']['reservation'])
-                self.logger.info(f"頁面標題: {driver.title}")
-                self.logger.info(f"目前網址: {driver.current_url}")
-
-                # 等待驗證碼圖片出現
-                self.logger.info("等待驗證碼圖片...")
-                WebDriverWait(driver, 60).until(
-                    EC.presence_of_element_located((By.CLASS_NAME, 'captcha-img'))
-                )
-
-                # 取得 JSESSIONID
-                cookies = driver.get_cookies()
-                jsessionid = None
-                for cookie in cookies:
-                    if cookie['name'] == 'JSESSIONID':
-                        jsessionid = cookie['value']
-                        break
-
-                # 取得驗證碼圖片 URL
-                captcha_img = driver.find_element(By.CLASS_NAME, 'captcha-img')
-                captcha_url = captcha_img.get_attribute('src')
-
-                if jsessionid and captcha_url:
-                    self.logger.info(f"✅ Session ID: {jsessionid[:20]}...")
-
-                    # 將 cookies 同步到 httpx session
-                    for cookie in cookies:
-                        self.session.cookies.set(
-                            cookie['name'],
-                            cookie['value'],
-                            domain=cookie.get('domain', 'irs.thsrc.com.tw')
-                        )
-
-                    driver.quit()
-                    return jsessionid, captcha_url
-                else:
-                    self.logger.warning("找不到 session 或驗證碼，重試中...")
-
-            except Exception as e:
-                self.logger.warning(f"Selenium 連線失敗: {e}")
-                # 嘗試輸出頁面資訊以便偵錯
-                if driver:
-                    try:
-                        self.logger.info(f"錯誤時的網址: {driver.current_url}")
-                        self.logger.info(f"錯誤時的標題: {driver.title}")
-                        # 輸出頁面部分內容
-                        page_source = driver.page_source[:500] if driver.page_source else "無內容"
-                        self.logger.info(f"頁面內容預覽: {page_source}")
-                    except:
-                        pass
-                if attempt < max_retries:
-                    wait_time = attempt * 3
-                    self.logger.info(f"等待 {wait_time} 秒後重試...")
-                    time.sleep(wait_time)
-            finally:
-                if driver:
-                    try:
-                        driver.quit()
-                    except:
-                        pass
-
-        self.logger.error("❌ 多次重試後仍無法連線")
-        sys.exit(1)
-
-    def _get_jsessionid_httpx(self, max_retries=3):
-        """使用 httpx 取得 jsessionid（備用方案）"""
         # 清除舊的 JSESSIONID，確保取得新的 session
         self.session.cookies.delete('JSESSIONID', domain='irs.thsrc.com.tw')
 
-        # 設置 Cookie 同意
+        # 設置 Cookie 同意（高鐵網站現在需要先同意 Cookie 政策）
         self.session.cookies.set('cookieAccepted', 'true', domain='irs.thsrc.com.tw')
         self.session.cookies.set('isShowCookiePolicy', 'N', domain='irs.thsrc.com.tw')
 
@@ -535,6 +383,7 @@ class THSRC(BaseService):
                         time.sleep(2)
                         continue
                     captcha_url = 'https://irs.thsrc.com.tw' + captcha_img['src']
+                    # 優先從響應 cookies 取得，否則從 session cookies 取得
                     jsessionid = res.cookies.get('JSESSIONID') or self.session.cookies.get('JSESSIONID')
                     self.logger.info(f"Session ID: {jsessionid[:20]}..." if jsessionid else "No session ID")
                     return jsessionid, captcha_url
@@ -544,7 +393,7 @@ class THSRC(BaseService):
             except Exception as e:
                 self.logger.warning(f"連線失敗: {e}")
                 if attempt < max_retries:
-                    wait_time = attempt * 3
+                    wait_time = attempt * 3  # 指數退避
                     self.logger.info(f"等待 {wait_time} 秒後重試...")
                     time.sleep(wait_time)
                 else:

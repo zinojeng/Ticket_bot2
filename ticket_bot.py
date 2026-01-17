@@ -18,8 +18,9 @@ try:
 except ImportError:
     pass
 
+from pathlib import Path
 from services import service_map
-from configs.config import config, app_name, filenames, schedules, __version__
+from configs.config import Config, app_name, filenames, directories, __version__
 from utils.io import load_toml
 
 
@@ -63,6 +64,12 @@ def main() -> None:
         help="enable debug logging",
     )
     parser.add_argument(
+        '-c',
+        '--config',
+        dest='config_file',
+        help="custom config file path (default: user_config.toml)",
+    )
+    parser.add_argument(
         '-h',
         '--help',
         action='help',
@@ -78,6 +85,20 @@ def main() -> None:
     )
 
     args = parser.parse_args()
+
+    # 載入設定檔（支援自訂路徑）
+    if args.config_file:
+        config_path = Path(args.config_file)
+        if not config_path.is_absolute():
+            config_path = directories.package_root / config_path
+        logging.info(f"使用自訂設定檔: {config_path}")
+    else:
+        config_path = filenames.root_config
+    
+    config = Config.from_toml(config_path)
+    config.directories['logs'] = directories.logs
+    schedules = config.schedules
+    fields = config.fields
 
     if args.debug:
         os.makedirs(config.directories['logs'], exist_ok=True)

@@ -34,7 +34,9 @@ echo "Starting ticket bot..."
 while true
 do
     # 執行 Python 腳本（使用虛擬環境中的 python）
-    venv/bin/python ticket_bot.py thsrc -a
+    #venv/bin/python ticket_bot.py thsrc -a
+    venv/bin/python ticket_bot.py thsrc -a -c user_config2.toml
+
     # 等待 5 秒
     sleep 5
     # 清除終端屏幕
