@@ -260,9 +260,18 @@ class THSRC(BaseService):
                     return gemini_result
                 else:
                     self.logger.warning(f"⚡ 結果不一致! (holey.cc: {holey_result} vs Gemini: {gemini_result})")
-                    # 目前策略：優先採用 Gemini 3，因為它是具備視覺推理能力的最新模型
-                    self.logger.info(f"🔧 採用 Gemini 3 修正結果: {gemini_result}")
-                    return gemini_result
+                    # 仲裁判斷：讓 Gemini 3 再次分析原圖和兩個結果，做最終決定
+                    self.logger.info("🤔 啟動仲裁判斷...")
+                    final_result = self._ocr_arbitrate_with_gemini(
+                        base64_str, holey_result, gemini_result, gemini_api_key
+                    )
+                    if final_result:
+                        self.logger.info(f"⚖️ 仲裁結果: {final_result}")
+                        return final_result
+                    else:
+                        # 仲裁失敗時，優先採用 holey.cc（專門為高鐵驗證碼訓練）
+                        self.logger.info(f"🔧 仲裁失敗，採用 holey.cc 結果: {holey_result}")
+                        return holey_result
             
             # 備原方案：如果只有其中一個成功
             final_code = gemini_result or holey_result
@@ -299,7 +308,73 @@ class THSRC(BaseService):
                 ]
             }],
             "generationConfig": {
-                "maxOutputTokens": 10,
+                "maxOutputTokens": 256,  # Gemini 3 是思考模型，需要更多 token
+                "temperature": 0.1,
+                "topP": 0.1
+            }
+        }
+
+        try:
+            with httpx.Client(timeout=30) as client:
+                res = client.post(api_url, json=payload)
+                if res.status_code == 200:
+                    result = res.json()
+                    # Debug: 顯示 API 回應
+                    self.logger.debug(f"Gemini 回應: {result}")
+                    if 'candidates' in result and result['candidates']:
+                        content = result['candidates'][0].get('content', {})
+                        parts = content.get('parts', [])
+                        if parts:
+                            raw_text = parts[0].get('text', '').strip()
+                            self.logger.debug(f"Gemini 原始輸出: '{raw_text}'")
+                            code = ''.join(c for c in raw_text if c.isascii() and c.isalnum()).upper()
+                            if len(code) >= 4:
+                                return code[:4]
+                            else:
+                                self.logger.warning(f"⚠️ Gemini 輸出不足4字元: '{raw_text}' → '{code}'")
+                    else:
+                        self.logger.warning(f"⚠️ Gemini 無 candidates: {result}")
+                else:
+                    self.logger.warning(f"Gemini API 錯誤: {res.status_code}")
+                    self.logger.warning(f"回應內容: {res.text}")
+        except Exception as e:
+            self.logger.warning(f"Gemini 呼叫失敗: {e}")
+        
+        return None
+    
+    def _ocr_arbitrate_with_gemini(self, base64_image, result_a, result_b, api_key):
+        """讓 Gemini 3 仲裁兩個不一致的識別結果"""
+        import httpx
+        
+        api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key={api_key}"
+        
+        prompt = f"""This CAPTCHA image has been recognized by two different OCR systems with conflicting results:
+- System A (specialized OCR): {result_a}
+- System B (AI vision): {result_b}
+
+Look at the image carefully and determine which result is CORRECT, or if both are wrong, provide the correct 4-character code.
+
+IMPORTANT:
+- The CAPTCHA contains exactly 4 characters (A-Z, 0-9)
+- Characters that often get confused: 0/O, 1/I, 5/S, 8/B, 2/Z, 6/G, 9/P, D/0, H/N, W/M
+- Focus on subtle differences between the two results
+
+Output ONLY the correct 4-character code. No explanation."""
+
+        payload = {
+            "contents": [{
+                "parts": [
+                    {"text": prompt},
+                    {
+                        "inline_data": {
+                            "mime_type": "image/png",
+                            "data": base64_image
+                        }
+                    }
+                ]
+            }],
+            "generationConfig": {
+                "maxOutputTokens": 256,
                 "temperature": 0.1,
                 "topP": 0.1
             }
@@ -319,10 +394,9 @@ class THSRC(BaseService):
                             if len(code) >= 4:
                                 return code[:4]
                 else:
-                    self.logger.warning(f"Gemini API 錯誤: {res.status_code}")
-                    self.logger.warning(f"回應內容: {res.text}") # 新增詳細錯誤內容
+                    self.logger.warning(f"仲裁 API 錯誤: {res.status_code}")
         except Exception as e:
-            self.logger.warning(f"Gemini 呼叫失敗: {e}")
+            self.logger.warning(f"仲裁失敗: {e}")
         
         return None
     
@@ -463,35 +537,58 @@ class THSRC(BaseService):
         """2. Confirm train"""
         trains = []
         has_discount = False
+        
+        # 取得時間區間設定
+        outbound_time_end = self.fields.get('outbound-time-end', '')
+        
         for train in html_page.find_all('input', {'name': 'TrainQueryDataViewPanel:TrainGroup'}):
-            if not self.fields['inbound-time'] or datetime.strptime(train['queryarrival'], '%H:%M').time() <= datetime.strptime(self.fields['inbound-time'], '%H:%M').time():
-                duration = train.parent.findNext('div').find('div', class_='duration').text.replace(
-                    '\n', '').replace('schedule', '').replace('directions_railway', '').split('｜')
-                schedule = duration[0]
-                train_no = duration[1]
-                discount = train.parent.findNext('div').find(
-                    'div', class_='discount').text.replace('\n', '')
-                if discount:
-                    has_discount = True
+            departure_time = train['querydeparture']
+            arrival_time = train['queryarrival']
+            
+            # 過濾抵達時間（如果有設定 inbound-time）
+            if self.fields['inbound-time']:
+                if datetime.strptime(arrival_time, '%H:%M').time() > datetime.strptime(self.fields['inbound-time'], '%H:%M').time():
+                    continue
+            
+            # 過濾出發時間結束（如果有設定 outbound-time-end）
+            if outbound_time_end:
+                if datetime.strptime(departure_time, '%H:%M').time() > datetime.strptime(outbound_time_end, '%H:%M').time():
+                    continue
+            
+            duration = train.parent.findNext('div').find('div', class_='duration').text.replace(
+                '\n', '').replace('schedule', '').replace('directions_railway', '').split('｜')
+            schedule = duration[0]
+            train_no = duration[1]
+            discount = train.parent.findNext('div').find(
+                'div', class_='discount').text.replace('\n', '')
+            if discount:
+                has_discount = True
 
-                trains.append({
-                    'departure_time': train['querydeparture'],
-                    'arrival_time': train['queryarrival'],
-                    'duration': schedule,
-                    'discount': discount,
-                    'no': train_no,
-                    'value': train['value']
-                })
+            trains.append({
+                'departure_time': departure_time,
+                'arrival_time': arrival_time,
+                'duration': schedule,
+                'discount': discount,
+                'no': train_no,
+                'value': train['value']
+            })
 
         if not trains:
+            time_range_msg = ""
+            if outbound_time_end:
+                time_range_msg = f"（時間區間：{self.fields['outbound-time']} ~ {outbound_time_end}）"
             if self.fields['inbound-time']:
                 self.logger.info(
-                    '\nThere is no trains left on %s before %s, please reserve different outbound time!', self.outbound_date, self.fields['inbound-time'])
+                    f'\n在 {self.outbound_date} {time_range_msg} 沒有符合條件的班次（抵達時間 <= {self.fields["inbound-time"]}），請調整時間設定！')
             else:
                 self.logger.info(
-                    '\nThere is no trains left on %s, please reserve other day!', self.outbound_date)
+                    f'\n在 {self.outbound_date} {time_range_msg} 沒有符合條件的班次，請調整時間設定！')
             sys.exit(0)
 
+        # 顯示時間區間資訊
+        if outbound_time_end:
+            self.logger.info(f'\n🕐 時間區間：{self.fields["outbound-time"]} ~ {outbound_time_end}')
+        
         self.logger.info('\nSelect train:')
 
         for idx, train in enumerate(trains, start=1):
@@ -730,7 +827,7 @@ class THSRC(BaseService):
 
             result_url = ''
             retry_count = 0
-            max_retries = 20  # 驗證碼最多重試 20 次（OCR 準確率約70-80%）
+            max_retries = 10  # 驗證碼最多重試 10 次，失敗後重新取得 Session
             found_train = False
             no_ticket_error = False
             

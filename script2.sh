@@ -37,15 +37,26 @@ fi
 echo "Requirements installed successfully"
 echo "Starting ticket bot..."
 
-# 無限循環
+# 無限循環（訂票成功會自動停止）
 while true
 do
     # 執行 Python 腳本（使用虛擬環境中的 python）
     #venv/bin/python ticket_bot.py thsrc -a
     venv/bin/python ticket_bot.py thsrc -a -c user_config2.toml
-
-    # 等待 5 秒
+    EXIT_CODE=$?
+    
+    # 如果 Python 腳本成功退出（exit code 0），表示訂票成功，停止循環
+    if [ $EXIT_CODE -eq 0 ]; then
+        echo ""
+        echo "🎉🎉🎉 訂票成功！程式已停止。🎉🎉🎉"
+        echo ""
+        # 播放提示音（macOS）
+        afplay /System/Library/Sounds/Glass.aiff 2>/dev/null || true
+        break
+    fi
+    
+    # 其他情況（錯誤或中斷），等待後重試
+    echo "⚠️ 程式異常退出 (exit code: $EXIT_CODE)，5秒後重試..."
     sleep 5
-    # 清除終端屏幕
     clear
 done

@@ -11,13 +11,13 @@ import time
 from zoneinfo import ZoneInfo
 from logging import INFO, DEBUG
 
-# Load .env file for API keys
+# Load .env file for API keys (override system env vars)
 try:
     from dotenv import load_dotenv
-    # 確保從腳本所在目錄載入 .env
+    # 確保從腳本所在目錄載入 .env，並覆蓋現有環境變數
     import pathlib
     env_path = pathlib.Path(__file__).parent / '.env'
-    load_dotenv(dotenv_path=env_path)
+    load_dotenv(dotenv_path=env_path, override=True)
 except ImportError:
     pass
 
