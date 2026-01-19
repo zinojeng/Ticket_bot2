@@ -268,7 +268,8 @@ Output ONLY the correct 4-character code. No explanation."""
                     page = BeautifulSoup(res.text, 'html.parser')
                     
                     # 找驗證碼圖片
-                    captcha_img = page.find('img', class_='captcha-img')
+                    # 退票頁面使用 img-captcha 類別（訂票頁面是 captcha-img）
+                    captcha_img = page.find('img', class_='img-captcha')
                     if not captcha_img:
                         self.logger.warning("找不到驗證碼圖片，重試中...")
                         time.sleep(2)
@@ -297,25 +298,35 @@ Output ONLY the correct 4-character code. No explanation."""
             'Referer': self.thsrc_config['page']['history'],
             'Upgrade-Insecure-Requests': '1',
             'User-Agent': self.headers_config.get('User-Agent', ''),
+            'Content-Type': 'application/x-www-form-urlencoded',
         }
         
+        # 根據高鐵網站 HTML 結構的正確欄位名稱
         data = {
-            'HistoryForm:hf:0': '',
-            'idInputRadio': '0',  # 0: 身分證, 1: 護照
-            'idNumber': roc_id,
+            'typesofid': '0',  # 0: 身分證, 1: 護照
+            'rocId': roc_id,
             'orderId': pnr,
-            'historySecCode': security_code,
+            'divCaptcha:securityCode': security_code,
             'SubmitButton': '查詢',
         }
         
         login_url = f'https://irs.thsrc.com.tw/IMINT/;jsessionid={jsessionid}?wicket:interface=:0:HistoryForm::IFormSubmitListener'
         
-        try:
-            res = self.session.post(login_url, headers=headers, data=data, timeout=60)
-            return res
-        except Exception as e:
-            self.logger.error(f"登入失敗: {e}")
-            return None
+        max_retries = 3
+        for attempt in range(1, max_retries + 1):
+            try:
+                self.logger.info(f"📤 送出查詢請求... (嘗試 {attempt}/{max_retries})")
+                res = self.session.post(login_url, headers=headers, data=data, timeout=180)
+                return res
+            except Exception as e:
+                self.logger.warning(f"查詢超時: {e}")
+                if attempt < max_retries:
+                    self.logger.info(f"⏳ 等待 {attempt * 5} 秒後重試...")
+                    time.sleep(attempt * 5)
+                else:
+                    self.logger.error(f"❌ 登入失敗: {e}")
+                    return None
+        return None
 
     def print_error_message(self, html_page: BeautifulSoup) -> list:
         """印出錯誤訊息"""
