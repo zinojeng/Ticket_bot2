@@ -717,12 +717,13 @@ Output ONLY the correct 4-character code. No explanation."""
             if outbound_time_end:
                 time_range_msg = f"（時間區間：{self.fields['outbound-time']} ~ {outbound_time_end}）"
             if self.fields['inbound-time']:
-                self.logger.info(
-                    f'\n在 {self.outbound_date} {time_range_msg} 沒有符合條件的班次（抵達時間 <= {self.fields["inbound-time"]}），請調整時間設定！')
+                self.logger.warning(
+                    f'\n⚠️ 在 {self.outbound_date} {time_range_msg} 沒有符合條件的班次（抵達時間 <= {self.fields["inbound-time"]}）')
             else:
-                self.logger.info(
-                    f'\n在 {self.outbound_date} {time_range_msg} 沒有符合條件的班次，請調整時間設定！')
-            sys.exit(0)
+                self.logger.warning(
+                    f'\n⚠️ 在 {self.outbound_date} {time_range_msg} 沒有符合條件的班次')
+            # 返回 None 表示沒有找到班次，讓主程式繼續搜尋
+            return None
 
         # 顯示時間區間資訊
         if outbound_time_end:
@@ -1016,50 +1017,64 @@ Output ONLY the correct 4-character code. No explanation."""
                     self.logger.info("✅ 驗證碼正確！找到車次列表")
             
             if found_train:
-                break  # 找到車次，繼續訂票流程
+                # 找到車次列表，嘗試選擇車次
+                confirm_train_page = BeautifulSoup(
+                    booking_form_result.text, 'html.parser')
+
+                if not self.fields['train-no']:
+                    result_url = ''
+                    train_retry = 0
+                    max_train_retries = 3
+                    no_matching_train = False
+                    
+                    while result_url != self.config['page']['interface'].format(interface=2):
+                        confirm_train_result = self.confirm_train(confirm_train_page)
+                        
+                        # 如果沒有符合條件的班次，回到搜尋迴圈繼續搜尋
+                        if confirm_train_result is None:
+                            self.logger.warning("⏳ 30秒後重新搜尋...")
+                            time.sleep(30)
+                            no_matching_train = True
+                            break
+                        
+                        if self.list:
+                            return
+                        result_url = confirm_train_result.url
+
+                        if result_url != self.config['page']['interface'].format(interface=2):
+                            error_msgs = self.print_error_message(confirm_train_result.text)
+                            train_retry += 1
+                            
+                            if error_msgs:
+                                self.logger.error(f"❌ 選擇車次失敗: {', '.join(error_msgs)}")
+                            
+                            if train_retry >= max_train_retries:
+                                self.logger.error("❌ 選擇車次重試次數過多")
+                                sys.exit(1)
+                            
+                            # 更新頁面重試
+                            confirm_train_page = BeautifulSoup(confirm_train_result.text, 'html.parser')
+                        else:
+                            self.logger.info("✅ 車次選擇成功！")
+                    
+                    # 如果沒有符合的班次，回到外層搜尋迴圈
+                    if no_matching_train:
+                        continue
+
+                    confirm_ticket_page = BeautifulSoup(
+                        confirm_train_result.text, 'html.parser')
+                    interface = 3
+                else:
+                    confirm_ticket_page = confirm_train_page
+                    interface = 2
+                
+                break  # 成功選擇車次，跳出搜尋迴圈繼續訂票
             
             if no_ticket_error:
                 continue  # 查無車次，重新搜尋
             
             # 驗證碼重試過多，重新開始
             self.logger.info("🔄 重新開始搜尋...")
-
-        confirm_train_page = BeautifulSoup(
-            booking_form_result.text, 'html.parser')
-
-        if not self.fields['train-no']:
-            result_url = ''
-            train_retry = 0
-            max_train_retries = 3
-            
-            while result_url != self.config['page']['interface'].format(interface=2):
-                confirm_train_result = self.confirm_train(confirm_train_page)
-                if self.list:
-                    return
-                result_url = confirm_train_result.url
-
-                if result_url != self.config['page']['interface'].format(interface=2):
-                    error_msgs = self.print_error_message(confirm_train_result.text)
-                    train_retry += 1
-                    
-                    if error_msgs:
-                        self.logger.error(f"❌ 選擇車次失敗: {', '.join(error_msgs)}")
-                    
-                    if train_retry >= max_train_retries:
-                        self.logger.error("❌ 選擇車次重試次數過多")
-                        sys.exit(1)
-                    
-                    # 更新頁面重試
-                    confirm_train_page = BeautifulSoup(confirm_train_result.text, 'html.parser')
-                else:
-                    self.logger.info("✅ 車次選擇成功！")
-
-            confirm_ticket_page = BeautifulSoup(
-                confirm_train_result.text, 'html.parser')
-            interface = 3
-        else:
-            confirm_ticket_page = confirm_train_page
-            interface = 2
 
         result_url = ''
         confirm_retry = 0

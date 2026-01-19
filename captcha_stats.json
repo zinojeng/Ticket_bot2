@@ -8,22 +8,22 @@
     "fail": 0
   },
   "both_match": {
-    "success": 0,
+    "success": 1,
     "fail": 0
   },
   "both_diff_holey": {
-    "success": 0,
+    "success": 1,
     "fail": 0
   },
   "both_diff_gemini": {
     "success": 0,
-    "fail": 4
+    "fail": 56
   },
   "arbitrated": {
     "success": 0,
-    "fail": 0
+    "fail": 4
   },
-  "last_updated": "2026-01-20 00:12:50",
+  "last_updated": "2026-01-20 03:32:37",
   "sessions": [
     {
       "timestamp": "2026-01-20 00:11:09",
@@ -111,8 +111,472 @@
           "fail": 0
         }
       }
+    },
+    {
+      "timestamp": "2026-01-20 00:16:15",
+      "stats": {
+        "holey_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "gemini_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_match": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_holey": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_gemini": {
+          "success": 0,
+          "fail": 2
+        },
+        "arbitrated": {
+          "success": 0,
+          "fail": 0
+        }
+      }
+    },
+    {
+      "timestamp": "2026-01-20 00:16:59",
+      "stats": {
+        "holey_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "gemini_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_match": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_holey": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_gemini": {
+          "success": 0,
+          "fail": 3
+        },
+        "arbitrated": {
+          "success": 0,
+          "fail": 0
+        }
+      }
+    },
+    {
+      "timestamp": "2026-01-20 00:28:27",
+      "stats": {
+        "holey_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "gemini_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_match": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_holey": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_gemini": {
+          "success": 0,
+          "fail": 4
+        },
+        "arbitrated": {
+          "success": 0,
+          "fail": 0
+        }
+      }
+    },
+    {
+      "timestamp": "2026-01-20 03:00:49",
+      "stats": {
+        "holey_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "gemini_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_match": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_holey": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_gemini": {
+          "success": 0,
+          "fail": 1
+        },
+        "arbitrated": {
+          "success": 0,
+          "fail": 0
+        }
+      }
+    },
+    {
+      "timestamp": "2026-01-20 03:00:53",
+      "stats": {
+        "holey_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "gemini_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_match": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_holey": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_gemini": {
+          "success": 0,
+          "fail": 1
+        },
+        "arbitrated": {
+          "success": 0,
+          "fail": 0
+        }
+      }
+    },
+    {
+      "timestamp": "2026-01-20 03:10:17",
+      "stats": {
+        "holey_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "gemini_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_match": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_holey": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_gemini": {
+          "success": 0,
+          "fail": 2
+        },
+        "arbitrated": {
+          "success": 0,
+          "fail": 0
+        }
+      }
+    },
+    {
+      "timestamp": "2026-01-20 03:12:08",
+      "stats": {
+        "holey_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "gemini_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_match": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_holey": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_gemini": {
+          "success": 0,
+          "fail": 3
+        },
+        "arbitrated": {
+          "success": 0,
+          "fail": 0
+        }
+      }
+    },
+    {
+      "timestamp": "2026-01-20 03:13:55",
+      "stats": {
+        "holey_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "gemini_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_match": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_holey": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_gemini": {
+          "success": 0,
+          "fail": 4
+        },
+        "arbitrated": {
+          "success": 0,
+          "fail": 0
+        }
+      }
+    },
+    {
+      "timestamp": "2026-01-20 03:17:44",
+      "stats": {
+        "holey_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "gemini_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_match": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_holey": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_gemini": {
+          "success": 0,
+          "fail": 2
+        },
+        "arbitrated": {
+          "success": 0,
+          "fail": 0
+        }
+      }
+    },
+    {
+      "timestamp": "2026-01-20 03:19:39",
+      "stats": {
+        "holey_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "gemini_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_match": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_holey": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_gemini": {
+          "success": 0,
+          "fail": 2
+        },
+        "arbitrated": {
+          "success": 0,
+          "fail": 1
+        }
+      }
+    },
+    {
+      "timestamp": "2026-01-20 03:21:34",
+      "stats": {
+        "holey_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "gemini_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_match": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_holey": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_gemini": {
+          "success": 0,
+          "fail": 3
+        },
+        "arbitrated": {
+          "success": 0,
+          "fail": 1
+        }
+      }
+    },
+    {
+      "timestamp": "2026-01-20 03:21:44",
+      "stats": {
+        "holey_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "gemini_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_match": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_holey": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_gemini": {
+          "success": 0,
+          "fail": 5
+        },
+        "arbitrated": {
+          "success": 0,
+          "fail": 0
+        }
+      }
+    },
+    {
+      "timestamp": "2026-01-20 03:25:47",
+      "stats": {
+        "holey_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "gemini_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_match": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_holey": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_gemini": {
+          "success": 0,
+          "fail": 4
+        },
+        "arbitrated": {
+          "success": 0,
+          "fail": 1
+        }
+      }
+    },
+    {
+      "timestamp": "2026-01-20 03:26:05",
+      "stats": {
+        "holey_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "gemini_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_match": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_holey": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_gemini": {
+          "success": 0,
+          "fail": 6
+        },
+        "arbitrated": {
+          "success": 0,
+          "fail": 0
+        }
+      }
+    },
+    {
+      "timestamp": "2026-01-20 03:32:26",
+      "stats": {
+        "holey_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "gemini_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_match": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_holey": {
+          "success": 1,
+          "fail": 0
+        },
+        "both_diff_gemini": {
+          "success": 0,
+          "fail": 4
+        },
+        "arbitrated": {
+          "success": 0,
+          "fail": 1
+        }
+      }
+    },
+    {
+      "timestamp": "2026-01-20 03:32:37",
+      "stats": {
+        "holey_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "gemini_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_match": {
+          "success": 1,
+          "fail": 0
+        },
+        "both_diff_holey": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_gemini": {
+          "success": 0,
+          "fail": 6
+        },
+        "arbitrated": {
+          "success": 0,
+          "fail": 0
+        }
+      }
     }
   ],
-  "cumulative_rate": "0/4",
-  "cumulative_percentage": 0.0
+  "cumulative_rate": "2/62",
+  "cumulative_percentage": 3.2
 }

@@ -59,7 +59,10 @@ do
     venv/bin/python ticket_bot.py thsrc -a -c "$CONFIG_FILE"
     EXIT_CODE=$?
     
-    # 如果 Python 腳本成功退出（exit code 0），表示訂票成功
+    # 根據 exit code 判斷結果
+    # 0 = 訂票成功
+    # 2 = 沒有符合條件的班次（需要重試）
+    # 其他 = 錯誤或中斷
     if [ $EXIT_CODE -eq 0 ]; then
         SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
         echo ""
@@ -79,6 +82,12 @@ do
             echo "⏳ 還需要成功 $REMAINING 次，10秒後繼續..."
             sleep 10
         fi
+    elif [ $EXIT_CODE -eq 2 ]; then
+        # 沒有符合條件的班次，繼續重試
+        echo ""
+        echo "⚠️ 沒有符合條件的班次，30秒後重新搜尋..."
+        sleep 30
+        clear
     else
         # 其他情況（錯誤或中斷），等待後重試
         echo "⚠️ 程式異常退出 (exit code: $EXIT_CODE)，5秒後重試..."
