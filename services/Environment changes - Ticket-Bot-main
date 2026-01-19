@@ -1,0 +1,25 @@
+# 終端環境變更
+
+## 延伸模組: Anthropic.claude-code
+
+- `CLAUDE_CODE_SSE_PORT=50863`
+
+## 延伸模組: ms-python.debugpy
+
+Enables use of [no-config debugging](https://github.com/microsoft/vscode-python-debugger/wiki/No%E2%80%90Config-Debugging), `debugpy <script.py>`, in the terminal.
+
+- `PYDEVD_DISABLE_FILE_VALIDATION=1`
+- `VSCODE_DEBUGPY_ADAPTER_ENDPOINTS=/Users/zino/.cursor/extensions/ms-python.debugpy-2025.18.0-darwin-arm64/.noConfigDebugAdapterEndpoints/endpoint-05fffca202c299f0.txt`
+- `PATH=${env:PATH}:/Users/zino/.cursor/extensions/ms-python.debugpy-2025.18.0-darwin-arm64/bundled/scripts/noConfigScripts`
+- `BUNDLED_DEBUGPY_PATH=/Users/zino/.cursor/extensions/ms-python.debugpy-2025.18.0-darwin-arm64/bundled/libs/debugpy`
+
+## 延伸模組: vscode.git
+
+啟用下列功能: git auth provider
+
+- `GIT_ASKPASS=/Applications/Cursor.app/Contents/Resources/app/extensions/git/dist/askpass.sh`
+- `VSCODE_GIT_ASKPASS_NODE=/Applications/Cursor.app/Contents/Frameworks/Cursor Helper (Plugin).app/Contents/MacOS/Cursor Helper (Plugin)`
+- `VSCODE_GIT_ASKPASS_EXTRA_ARGS=`
+- `VSCODE_GIT_ASKPASS_MAIN=/Applications/Cursor.app/Contents/Resources/app/extensions/git/dist/askpass-main.js`
+- `VSCODE_GIT_IPC_HANDLE=/var/folders/bw/sj2y8w0115q519xjvp34ts380000gn/T/vscode-git-1d4751a076.sock`
+- `VSCODE_GIT_IPC_AUTH_TOKEN=b186f67b98e872dcbfe71f8c39158a1ab826ae83aa9f96a9efb88d4eea034be9`

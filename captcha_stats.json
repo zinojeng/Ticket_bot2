@@ -17,13 +17,13 @@
   },
   "both_diff_gemini": {
     "success": 0,
-    "fail": 56
+    "fail": 57
   },
   "arbitrated": {
     "success": 0,
     "fail": 4
   },
-  "last_updated": "2026-01-20 03:32:37",
+  "last_updated": "2026-01-20 06:45:00",
   "sessions": [
     {
       "timestamp": "2026-01-20 00:11:09",
@@ -575,8 +575,37 @@
           "fail": 0
         }
       }
+    },
+    {
+      "timestamp": "2026-01-20 06:45:00",
+      "stats": {
+        "holey_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "gemini_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_match": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_holey": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_gemini": {
+          "success": 0,
+          "fail": 1
+        },
+        "arbitrated": {
+          "success": 0,
+          "fail": 0
+        }
+      }
     }
   ],
-  "cumulative_rate": "2/62",
+  "cumulative_rate": "2/63",
   "cumulative_percentage": 3.2
 }
