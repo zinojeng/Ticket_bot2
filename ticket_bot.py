@@ -143,11 +143,20 @@ def main() -> None:
         args.service = service['name']
 
         if schedules[service['name']].get('datetime'):
-            schedule_time = schedules[service['name']]['datetime']
+            schedule_time = schedules[service['name']]['datetime'].strip()
             timezone = ZoneInfo('Asia/Taipei')
             current_time = datetime.now(timezone)
+            
+            # 支援多種格式：
+            # - "HH:MM" → 今天的指定時間
+            # - "YYYY-MM-DD" → 指定日期的 00:00
+            # - "YYYY-MM-DD HH:MM" → 完整日期時間
             if re.search(r'^\d+:\d+$', schedule_time):
+                # 只有時間 (HH:MM)
                 schedule_time = f"{current_time.date()} {schedule_time}"
+            elif re.search(r'^\d{4}-\d{2}-\d{2}$', schedule_time):
+                # 只有日期 (YYYY-MM-DD)，補上 00:00
+                schedule_time = f"{schedule_time} 00:00"
 
             schedule_time = datetime.strptime(
                 schedule_time, '%Y-%m-%d %H:%M').replace(tzinfo=timezone)

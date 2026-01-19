@@ -827,7 +827,7 @@ Output ONLY the correct 4-character code. No explanation."""
 
             result_url = ''
             retry_count = 0
-            max_retries = 10  # 驗證碼最多重試 10 次，失敗後重新取得 Session
+            max_retries = 3  # 驗證碼最多重試 3 次，失敗後重新取得 Session（快速換圖策略）
             found_train = False
             no_ticket_error = False
             
