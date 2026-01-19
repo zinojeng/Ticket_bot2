@@ -150,13 +150,19 @@ def main() -> None:
                 schedule_time = f"{current_time.date()} {schedule_time}"
 
             schedule_time = datetime.strptime(
-                schedule_time, '%Y-%m-%d %H:%M').astimezone(timezone)
+                schedule_time, '%Y-%m-%d %H:%M').replace(tzinfo=timezone)
             logging.info("The bot will auto buy tickets on %s", schedule_time)
-            while current_time.time() <= schedule_time.time():
-                current_time = datetime.now(ZoneInfo('Asia/Taipei'))
+            
+            # 比較完整的日期時間，而不是只比較時間部分
+            while current_time < schedule_time:
+                current_time = datetime.now(timezone)
+                time_diff = schedule_time - current_time
+                hours, remainder = divmod(int(time_diff.total_seconds()), 3600)
+                minutes, seconds = divmod(remainder, 60)
                 print(
-                    f"\rCurrent time: {current_time.strftime('%Y-%m-%d %H:%M:%S')}", end='')
+                    f"\r⏳ 等待中... 剩餘 {hours:02d}:{minutes:02d}:{seconds:02d} | 目標: {schedule_time.strftime('%Y-%m-%d %H:%M:%S')}", end='')
                 time.sleep(1)
+            print()  # 換行
 
         start = datetime.now()
         service['class'](args).main()
