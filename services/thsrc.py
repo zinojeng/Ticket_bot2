@@ -34,6 +34,17 @@ class THSRC(BaseService):
         self.ticket_num = self.select_ticket_num()
         self.car_type = self.select_car_type()
         self.preferred_seat = self.select_preferred_seat()
+        
+        # 驗證碼識別統計
+        self.captcha_stats = {
+            'holey_only': {'success': 0, 'fail': 0},      # 只有 holey.cc 識別
+            'gemini_only': {'success': 0, 'fail': 0},     # 只有 Gemini 識別
+            'both_match': {'success': 0, 'fail': 0},      # 兩者一致
+            'both_diff_holey': {'success': 0, 'fail': 0}, # 兩者不一致，採用 holey
+            'both_diff_gemini': {'success': 0, 'fail': 0},# 兩者不一致，採用 gemini
+            'arbitrated': {'success': 0, 'fail': 0},      # 仲裁結果
+        }
+        self.last_captcha_source = None  # 記錄最後一次使用的識別來源
 
     def print_error_message(self, html_page):
         """Print error messsage"""
@@ -216,6 +227,121 @@ class THSRC(BaseService):
 
         return preferred_seat
 
+    def _print_captcha_stats(self):
+        """輸出驗證碼識別統計"""
+        stats = self.captcha_stats
+        
+        # 計算各來源的成功率
+        def calc_rate(source):
+            total = stats[source]['success'] + stats[source]['fail']
+            if total == 0:
+                return 0, 0
+            return total, (stats[source]['success'] / total * 100)
+        
+        holey_total, holey_rate = calc_rate('holey_only')
+        gemini_total, gemini_rate = calc_rate('gemini_only')
+        match_total, match_rate = calc_rate('both_match')
+        diff_holey_total, diff_holey_rate = calc_rate('both_diff_holey')
+        diff_gemini_total, diff_gemini_rate = calc_rate('both_diff_gemini')
+        arb_total, arb_rate = calc_rate('arbitrated')
+        
+        # 只有有數據時才輸出
+        total_attempts = sum(stats[k]['success'] + stats[k]['fail'] for k in stats)
+        if total_attempts == 0:
+            return
+        
+        total_success = sum(stats[k]['success'] for k in stats)
+        overall_rate = total_success / total_attempts * 100 if total_attempts > 0 else 0
+        
+        self.logger.info("=" * 50)
+        self.logger.info("📊 驗證碼識別統計")
+        self.logger.info("-" * 50)
+        if match_total > 0:
+            self.logger.info(f"🎯 兩者一致: {stats['both_match']['success']}/{match_total} ({match_rate:.1f}%)")
+        if diff_holey_total > 0:
+            self.logger.info(f"⚡ 不一致→採用holey: {stats['both_diff_holey']['success']}/{diff_holey_total} ({diff_holey_rate:.1f}%)")
+        if diff_gemini_total > 0:
+            self.logger.info(f"⚡ 不一致→採用Gemini: {stats['both_diff_gemini']['success']}/{diff_gemini_total} ({diff_gemini_rate:.1f}%)")
+        if arb_total > 0:
+            self.logger.info(f"⚖️ 仲裁結果: {stats['arbitrated']['success']}/{arb_total} ({arb_rate:.1f}%)")
+        if holey_total > 0:
+            self.logger.info(f"📌 僅holey.cc: {stats['holey_only']['success']}/{holey_total} ({holey_rate:.1f}%)")
+        if gemini_total > 0:
+            self.logger.info(f"✨ 僅Gemini: {stats['gemini_only']['success']}/{gemini_total} ({gemini_rate:.1f}%)")
+        self.logger.info("-" * 50)
+        self.logger.info(f"📈 整體成功率: {total_success}/{total_attempts} ({overall_rate:.1f}%)")
+        self.logger.info("=" * 50)
+        
+        # 儲存統計到檔案
+        self._save_captcha_stats()
+    
+    def _save_captcha_stats(self):
+        """儲存驗證碼識別統計到 JSON 檔案"""
+        import json
+        from pathlib import Path
+        
+        stats_file = Path(__file__).parent.parent / 'captcha_stats.json'
+        
+        # 讀取現有統計（如果存在）
+        cumulative_stats = {
+            'holey_only': {'success': 0, 'fail': 0},
+            'gemini_only': {'success': 0, 'fail': 0},
+            'both_match': {'success': 0, 'fail': 0},
+            'both_diff_holey': {'success': 0, 'fail': 0},
+            'both_diff_gemini': {'success': 0, 'fail': 0},
+            'arbitrated': {'success': 0, 'fail': 0},
+            'last_updated': '',
+            'sessions': []
+        }
+        
+        if stats_file.exists():
+            try:
+                with open(stats_file, 'r', encoding='utf-8') as f:
+                    cumulative_stats = json.load(f)
+            except Exception:
+                pass
+        
+        # 累加本次統計
+        for key in self.captcha_stats:
+            if key in cumulative_stats:
+                cumulative_stats[key]['success'] += self.captcha_stats[key]['success']
+                cumulative_stats[key]['fail'] += self.captcha_stats[key]['fail']
+        
+        # 記錄本次 session
+        session_stats = {
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'stats': self.captcha_stats.copy()
+        }
+        if 'sessions' not in cumulative_stats:
+            cumulative_stats['sessions'] = []
+        cumulative_stats['sessions'].append(session_stats)
+        
+        # 只保留最近 50 次 session
+        if len(cumulative_stats['sessions']) > 50:
+            cumulative_stats['sessions'] = cumulative_stats['sessions'][-50:]
+        
+        cumulative_stats['last_updated'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # 計算累計成功率
+        total_attempts = sum(
+            cumulative_stats[k]['success'] + cumulative_stats[k]['fail'] 
+            for k in self.captcha_stats.keys() if k in cumulative_stats
+        )
+        total_success = sum(
+            cumulative_stats[k]['success'] 
+            for k in self.captcha_stats.keys() if k in cumulative_stats
+        )
+        cumulative_stats['cumulative_rate'] = f"{total_success}/{total_attempts}" if total_attempts > 0 else "0/0"
+        cumulative_stats['cumulative_percentage'] = round(total_success / total_attempts * 100, 1) if total_attempts > 0 else 0
+        
+        # 寫入檔案
+        try:
+            with open(stats_file, 'w', encoding='utf-8') as f:
+                json.dump(cumulative_stats, f, ensure_ascii=False, indent=2)
+            self.logger.info(f"📁 統計已儲存至 {stats_file.name}")
+        except Exception as e:
+            self.logger.warning(f"⚠️ 無法儲存統計: {e}")
+
     def get_security_code(self, captcha_url):
         """OCR captcha - holey.cc 與 Gemini 3 雙重比對方案"""
         import httpx
@@ -257,6 +383,7 @@ class THSRC(BaseService):
             if holey_result and gemini_result:
                 if holey_result.upper() == gemini_result.upper():
                     self.logger.info("🎯 兩者一致，信心度高！")
+                    self.last_captcha_source = 'both_match'
                     return gemini_result
                 else:
                     self.logger.warning(f"⚡ 結果不一致! (holey.cc: {holey_result} vs Gemini: {gemini_result})")
@@ -267,17 +394,29 @@ class THSRC(BaseService):
                     )
                     if final_result:
                         self.logger.info(f"⚖️ 仲裁結果: {final_result}")
+                        # 記錄仲裁選擇了哪個
+                        if final_result.upper() == holey_result.upper():
+                            self.last_captcha_source = 'both_diff_holey'
+                        elif final_result.upper() == gemini_result.upper():
+                            self.last_captcha_source = 'both_diff_gemini'
+                        else:
+                            self.last_captcha_source = 'arbitrated'
                         return final_result
                     else:
                         # 仲裁失敗時，優先採用 holey.cc（專門為高鐵驗證碼訓練）
                         self.logger.info(f"🔧 仲裁失敗，採用 holey.cc 結果: {holey_result}")
+                        self.last_captcha_source = 'both_diff_holey'
                         return holey_result
             
             # 備原方案：如果只有其中一個成功
-            final_code = gemini_result or holey_result
-            if final_code:
-                self.logger.info("+ 最終驗證碼: %s", final_code)
-                return final_code
+            if gemini_result:
+                self.last_captcha_source = 'gemini_only'
+                self.logger.info("+ 最終驗證碼 (Gemini): %s", gemini_result)
+                return gemini_result
+            elif holey_result:
+                self.last_captcha_source = 'holey_only'
+                self.logger.info("+ 最終驗證碼 (holey.cc): %s", holey_result)
+                return holey_result
             
             return None
                 
@@ -845,6 +984,12 @@ Output ONLY the correct 4-character code. No explanation."""
 
                 if result_url != self.config['page']['interface'].format(interface=1):
                     error_msg = self.print_error_message(booking_form_result.text)
+                    
+                    # 統計：驗證碼識別失敗
+                    if self.last_captcha_source and '檢測碼輸入錯誤' in str(error_msg):
+                        self.captcha_stats[self.last_captcha_source]['fail'] += 1
+                        self._print_captcha_stats()
+                    
                     retry_count += 1
                     
                     # 檢查是否為「查無車次」錯誤
@@ -862,8 +1007,13 @@ Output ONLY the correct 4-character code. No explanation."""
                     self.logger.info(f"🔄 驗證碼錯誤，更新中... ({retry_count}/{max_retries})")
                     captcha_url = self.update_captcha(jsessionid=jsessionid)
                 else:
+                    # 統計：驗證碼識別成功
+                    if self.last_captcha_source:
+                        self.captcha_stats[self.last_captcha_source]['success'] += 1
+                        self._print_captcha_stats()
+                    
                     found_train = True
-                    self.logger.info(f"✅ 驗證碼正確！找到車次列表")
+                    self.logger.info("✅ 驗證碼正確！找到車次列表")
             
             if found_train:
                 break  # 找到車次，繼續訂票流程

@@ -1,0 +1,118 @@
+{
+  "holey_only": {
+    "success": 0,
+    "fail": 0
+  },
+  "gemini_only": {
+    "success": 0,
+    "fail": 0
+  },
+  "both_match": {
+    "success": 0,
+    "fail": 0
+  },
+  "both_diff_holey": {
+    "success": 0,
+    "fail": 0
+  },
+  "both_diff_gemini": {
+    "success": 0,
+    "fail": 4
+  },
+  "arbitrated": {
+    "success": 0,
+    "fail": 0
+  },
+  "last_updated": "2026-01-20 00:12:50",
+  "sessions": [
+    {
+      "timestamp": "2026-01-20 00:11:09",
+      "stats": {
+        "holey_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "gemini_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_match": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_holey": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_gemini": {
+          "success": 0,
+          "fail": 1
+        },
+        "arbitrated": {
+          "success": 0,
+          "fail": 0
+        }
+      }
+    },
+    {
+      "timestamp": "2026-01-20 00:11:48",
+      "stats": {
+        "holey_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "gemini_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_match": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_holey": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_gemini": {
+          "success": 0,
+          "fail": 1
+        },
+        "arbitrated": {
+          "success": 0,
+          "fail": 0
+        }
+      }
+    },
+    {
+      "timestamp": "2026-01-20 00:12:50",
+      "stats": {
+        "holey_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "gemini_only": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_match": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_holey": {
+          "success": 0,
+          "fail": 0
+        },
+        "both_diff_gemini": {
+          "success": 0,
+          "fail": 2
+        },
+        "arbitrated": {
+          "success": 0,
+          "fail": 0
+        }
+      }
+    }
+  ],
+  "cumulative_rate": "0/4",
+  "cumulative_percentage": 0.0
+}
