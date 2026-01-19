@@ -5,6 +5,7 @@
 
 [schedules.THSRC]
 datetime = '' # datetime 預計訂票日期 (e.g. 2023-01-01 00:00)
+success-repeat = 0  # 成功後再循環次數（0 = 成功後立即停止，3 = 成功後再嘗試3次）
 
 # Copy user-agent from login browser (https://www.whatsmyua.info/)
 [headers]
