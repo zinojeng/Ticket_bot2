@@ -50,7 +50,7 @@ elif [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
     # 顯示說明
     venv/bin/python cancel_bot.py --help
 elif [ -n "$1" ] && [ -n "$2" ]; then
-    # 直接指定身分證和訂位代號
+    # 直接指定身分證和訂位代號（支援多筆，用逗號分隔）
     echo "🎯 直接退票模式"
     echo "   身分證: $1"
     echo "   訂位代號: $2"
@@ -77,9 +77,10 @@ else
         echo "   3. 互動模式:   ./cancel.sh -i"
         echo ""
         echo "📌 範例:"
-        echo "   ./cancel.sh A123456789 12345678      # 單筆退票"
-        echo "   ./cancel.sh A123456789 12345678 -y   # 跳過確認"
-        echo "   ./cancel.sh -i                        # 互動模式"
+        echo "   ./cancel.sh A123456789 12345678              # 單筆退票"
+        echo "   ./cancel.sh A123456789 \"12345678,87654321\"   # 多筆退票"
+        echo "   ./cancel.sh A123456789 12345678 -y           # 跳過確認"
+        echo "   ./cancel.sh -i                                # 互動模式"
         exit 1
     fi
 fi

@@ -59,11 +59,40 @@ class THSRCCancel:
             with open(self.config_path, 'r', encoding='utf-8') as f:
                 config = rtoml.load(f)
             
-            self.cancellations = [c for c in config.get('cancellations', []) if c.get('enabled', False)]
+            self.cancellations = []
             self.settings = config.get('settings', {})
             self.headers_config = config.get('headers', {})
             
-            self.logger.info(f"📋 載入 {len(self.cancellations)} 筆待退票資料")
+            # 方式一：批次退票（一個身分證 + 多個訂位代號）
+            batch = config.get('batch', {})
+            if batch.get('enabled', False) and batch.get('id') and batch.get('pnr_list'):
+                batch_id = batch['id'].strip()
+                pnr_list_str = batch['pnr_list'].strip()
+                
+                # 解析訂位代號清單（支援逗號、換行、空格分隔）
+                pnr_list = []
+                for pnr in re.split(r'[,\n\s]+', pnr_list_str):
+                    pnr = pnr.strip()
+                    if pnr:
+                        pnr_list.append(pnr)
+                
+                for pnr in pnr_list:
+                    self.cancellations.append({
+                        'id': batch_id,
+                        'pnr': pnr,
+                        'enabled': True
+                    })
+                
+                self.logger.info(f"📋 批次模式：{len(pnr_list)} 筆待退票（身分證: {batch_id[:4]}****{batch_id[-2:]}）")
+            
+            # 方式二：個別退票（舊格式）
+            individual = [c for c in config.get('cancellations', []) if c.get('enabled', False) and c.get('id') and c.get('pnr')]
+            if individual:
+                self.cancellations.extend(individual)
+                self.logger.info(f"📋 個別模式：{len(individual)} 筆待退票")
+            
+            if not self.cancellations:
+                self.logger.info("📋 沒有待退票資料")
             
         except FileNotFoundError:
             self.logger.error(f"❌ 找不到設定檔: {self.config_path}")

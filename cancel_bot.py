@@ -43,40 +43,96 @@ from services.thsrc_cancel import THSRCCancel
 
 def interactive_mode():
     """互動模式：手動輸入退票資訊"""
+    import re
+    
     print("\n" + "="*60)
     print("🚄 高鐵退票機器人 - 互動模式")
     print("="*60)
     
     cancellations = []
     
-    while True:
-        print(f"\n📝 輸入第 {len(cancellations) + 1} 筆退票資料")
-        print("-" * 40)
+    print("\n💡 提示：支援兩種輸入方式")
+    print("   1. 批次模式：一個身分證 + 多個訂位代號")
+    print("   2. 個別模式：每筆分開輸入")
+    
+    mode = input("\n選擇模式 [1=批次/2=個別] (預設: 1): ").strip()
+    
+    if mode != '2':
+        # 批次模式：一個身分證 + 多個訂位代號
+        print("\n" + "-"*40)
+        print("📦 批次退票模式")
+        print("-"*40)
         
-        roc_id = input("身分證字號 (輸入 q 結束): ").strip()
-        if roc_id.lower() == 'q':
-            break
-        
+        roc_id = input("身分證字號: ").strip().upper()
         if len(roc_id) != 10:
             print("⚠️ 身分證字號格式不正確（應為10碼）")
-            continue
+            return
         
-        pnr = input("訂位代號: ").strip()
-        if not pnr:
-            print("⚠️ 訂位代號不能為空")
-            continue
+        print("\n📋 輸入訂位代號（可用逗號、空格或換行分隔）")
+        print("   範例: 12345678, 87654321, 11112222")
+        print("   輸入完成後按 Enter 兩次結束")
+        print("-"*40)
         
-        cancellations.append({
-            'id': roc_id.upper(),
-            'pnr': pnr.upper(),
-            'enabled': True
-        })
+        pnr_lines = []
+        while True:
+            line = input()
+            if not line:
+                break
+            pnr_lines.append(line)
         
-        print(f"✅ 已加入: {roc_id[:4]}****{roc_id[-2:]} / {pnr}")
+        pnr_str = ' '.join(pnr_lines)
+        pnr_list = []
+        for pnr in re.split(r'[,\n\s]+', pnr_str):
+            pnr = pnr.strip().upper()
+            if pnr:
+                pnr_list.append(pnr)
         
-        cont = input("\n繼續輸入下一筆？(Y/n): ").strip().lower()
-        if cont == 'n':
-            break
+        if not pnr_list:
+            print("❌ 沒有輸入任何訂位代號")
+            return
+        
+        for pnr in pnr_list:
+            cancellations.append({
+                'id': roc_id,
+                'pnr': pnr,
+                'enabled': True
+            })
+        
+        print(f"\n✅ 已加入 {len(pnr_list)} 筆退票資料")
+        
+    else:
+        # 個別模式：每筆分開輸入
+        print("\n" + "-"*40)
+        print("📝 個別退票模式")
+        print("-"*40)
+        
+        while True:
+            print(f"\n輸入第 {len(cancellations) + 1} 筆退票資料")
+            
+            roc_id = input("身分證字號 (輸入 q 結束): ").strip()
+            if roc_id.lower() == 'q':
+                break
+            
+            if len(roc_id) != 10:
+                print("⚠️ 身分證字號格式不正確（應為10碼）")
+                continue
+            
+            pnr = input("訂位代號: ").strip()
+            if not pnr:
+                print("⚠️ 訂位代號不能為空")
+                continue
+            
+            cancellations.append({
+                'id': roc_id.upper(),
+                'pnr': pnr.upper(),
+                'enabled': True
+            })
+            
+            print(f"✅ 已加入: {roc_id[:4]}****{roc_id[-2:]} / {pnr}")
+            
+            cont = input("\n繼續輸入下一筆？(Y/n): ").strip().lower()
+            if cont == 'n':
+                break
     
     if not cancellations:
         print("❌ 沒有輸入任何退票資料")
@@ -109,6 +165,9 @@ def main():
 
   # 直接指定單筆退票
   python cancel_bot.py --id A123456789 --pnr 12345678
+
+  # 直接指定多筆退票（用逗號分隔）
+  python cancel_bot.py --id A123456789 --pnr "12345678,87654321,11112222"
 
   # 互動模式手動輸入
   python cancel_bot.py -i
@@ -143,7 +202,7 @@ def main():
     
     parser.add_argument(
         '--pnr',
-        help='直接指定訂位代號（需搭配 --id）'
+        help='直接指定訂位代號，多筆用逗號分隔（需搭配 --id）'
     )
     
     parser.add_argument(
@@ -162,18 +221,32 @@ def main():
     
     # 直接指定參數模式
     if args.id and args.pnr:
+        import re
+        
+        # 解析多個訂位代號（用逗號、空格分隔）
+        pnr_list = []
+        for pnr in re.split(r'[,\s]+', args.pnr):
+            pnr = pnr.strip().upper()
+            if pnr:
+                pnr_list.append(pnr)
+        
+        roc_id = args.id.upper()
+        
         print("\n📌 使用命令列參數模式")
+        print(f"   身分證: {roc_id[:4]}****{roc_id[-2:]}")
+        print(f"   訂位代號: {len(pnr_list)} 筆")
+        for pnr in pnr_list:
+            print(f"     - {pnr}")
+        
+        # 建立退票清單
+        cancellations = [{'id': roc_id, 'pnr': pnr, 'enabled': True} for pnr in pnr_list]
         
         for i in range(args.repeat):
             if args.repeat > 1:
-                print(f"\n🔄 執行第 {i + 1}/{args.repeat} 次")
+                print(f"\n🔄 執行第 {i + 1}/{args.repeat} 輪")
             
             cancel_service = THSRCCancel(args.config)
-            cancel_service.cancellations = [{
-                'id': args.id.upper(),
-                'pnr': args.pnr.upper(),
-                'enabled': True
-            }]
+            cancel_service.cancellations = cancellations
             
             if args.yes:
                 cancel_service.settings['confirm_before_cancel'] = False
@@ -182,7 +255,7 @@ def main():
             
             if success and i < args.repeat - 1:
                 import time
-                print(f"\n⏳ 等待 5 秒後執行下一次...")
+                print(f"\n⏳ 等待 5 秒後執行下一輪...")
                 time.sleep(5)
         
         return
