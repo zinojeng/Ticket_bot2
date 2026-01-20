@@ -343,7 +343,7 @@ class THSRC(BaseService):
             self.logger.warning(f"⚠️ 無法儲存統計: {e}")
 
     def get_security_code(self, captcha_url):
-        """OCR captcha - holey.cc 與 Gemini 3 雙重比對方案"""
+        """OCR captcha - 只用 holey.cc（速度最快 ~100ms）"""
         import httpx
         
         try:
@@ -353,70 +353,21 @@ class THSRC(BaseService):
                 return None
             
             base64_str = base64.b64encode(res.content).decode("utf-8")
-            holey_result = None
-            gemini_result = None
             
-            # Step 1: 使用 holey.cc OCR（專門為高鐵驗證碼訓練）
+            # 使用 holey.cc OCR（專門為高鐵驗證碼訓練，準確率 ~98%）
             try:
                 base64_url_safe = base64_str.replace('+', '-').replace('/', '_').replace('=', '')
                 data = {'base64_str': base64_url_safe}
-                with httpx.Client(timeout=30) as ocr_client:
+                with httpx.Client(timeout=10) as ocr_client:
                     ocr_res = ocr_client.post(
                         self.config['api']['captcha_ocr'], json=data)
                 if ocr_res.status_code == 200:
-                    holey_result = ocr_res.json().get('data')
-                    self.logger.info("+ holey.cc 識別: %s", holey_result)
+                    result = ocr_res.json().get('data')
+                    self.logger.info("⚡ 驗證碼: %s (holey.cc)", result)
+                    self.last_captcha_source = 'holey_only'
+                    return result
             except Exception as e:
                 self.logger.warning(f"holey.cc OCR 失敗: {e}")
-            
-            # Step 2: 使用 Gemini 3 識別（如果設定了 GEMINI_API_KEY）
-            gemini_api_key = os.getenv('GEMINI_API_KEY')
-            if gemini_api_key:
-                # Debug: 顯示 API key 前幾個字元確認是否正確讀取
-                self.logger.info(f"🔑 GEMINI_API_KEY: {gemini_api_key[:10]}...{gemini_api_key[-4:]}")
-                self.logger.info("✨ 使用 Gemini 3 Flash 識別中...")
-                gemini_result = self._ocr_with_gemini("gemini-3-flash-preview", base64_str, gemini_api_key)
-                if gemini_result:
-                    self.logger.info(f"+ Gemini 3 識別: {gemini_result}")
-            
-            # Step 3: 比對結果並輸出最終答案
-            if holey_result and gemini_result:
-                if holey_result.upper() == gemini_result.upper():
-                    self.logger.info("🎯 兩者一致，信心度高！")
-                    self.last_captcha_source = 'both_match'
-                    return gemini_result
-                else:
-                    self.logger.warning(f"⚡ 結果不一致! (holey.cc: {holey_result} vs Gemini: {gemini_result})")
-                    # 仲裁判斷：讓 Gemini 3 再次分析原圖和兩個結果，做最終決定
-                    self.logger.info("🤔 啟動仲裁判斷...")
-                    final_result = self._ocr_arbitrate_with_gemini(
-                        base64_str, holey_result, gemini_result, gemini_api_key
-                    )
-                    if final_result:
-                        self.logger.info(f"⚖️ 仲裁結果: {final_result}")
-                        # 記錄仲裁選擇了哪個
-                        if final_result.upper() == holey_result.upper():
-                            self.last_captcha_source = 'both_diff_holey'
-                        elif final_result.upper() == gemini_result.upper():
-                            self.last_captcha_source = 'both_diff_gemini'
-                        else:
-                            self.last_captcha_source = 'arbitrated'
-                        return final_result
-                    else:
-                        # 仲裁失敗時，優先採用 holey.cc（專門為高鐵驗證碼訓練）
-                        self.logger.info(f"🔧 仲裁失敗，採用 holey.cc 結果: {holey_result}")
-                        self.last_captcha_source = 'both_diff_holey'
-                        return holey_result
-            
-            # 備原方案：如果只有其中一個成功
-            if gemini_result:
-                self.last_captcha_source = 'gemini_only'
-                self.logger.info("+ 最終驗證碼 (Gemini): %s", gemini_result)
-                return gemini_result
-            elif holey_result:
-                self.last_captcha_source = 'holey_only'
-                self.logger.info("+ 最終驗證碼 (holey.cc): %s", holey_result)
-                return holey_result
             
             return None
                 
