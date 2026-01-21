@@ -4,7 +4,7 @@
 [schedules]
 
 [schedules.THSRC]
-datetime = '2026-01-20 20:30' # datetime 預計訂票日期 (e.g. 2023-01-01 00:00)
+datetime = '2026-01-22 05:00' # datetime 預計訂票日期 (e.g. 2023-01-01 00:00)
 success-repeat = 3  # 成功後再循環次數（0 = 成功後立即停止，3 = 成功後再嘗試3次）
 
 # Copy user-agent from login browser (https://www.whatsmyua.info/)
@@ -17,11 +17,11 @@ User-Agent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.
 
 [fields.THSRC]
 id = 'E122508493'             # ROC ID No. 身分證字號 (e.g. AXXXXXXXXX)
-start-station = 'Taichung'  # Start-station 出發站 (e.g. Taipei)
-dest-station = 'Taipei'   # Dest-station 抵達站 (e.g. Tainan)
-outbound-date = '2026-02-21'  # Outbound date 出發日期 (e.g. 2023-01-01)
-outbound-time = '14:30'  # Outbound time 出發時間（搜尋起始時間）(e.g. 09:00)
-outbound-time-end = '18:30'  # Outbound time end 出發時間結束（搜尋結束時間，留空則不限制）(e.g. 13:00)
+start-station = 'Taipei'  # Start-station 出發站 (e.g. Taipei)
+dest-station = 'Taichung'   # Dest-station 抵達站 (e.g. Tainan)
+outbound-date = '2026-02-18'  # Outbound date 出發日期 (e.g. 2023-01-01)
+outbound-time = '07:00'  # Outbound time 出發時間（搜尋起始時間）(e.g. 09:00)
+outbound-time-end = '13:30'  # Outbound time end 出發時間結束（搜尋結束時間，留空則不限制）(e.g. 13:00)
 inbound-time = ''   # Inbound time 抵達時間（留空則不限制）(e.g. 12:00)
 preferred-seat = '' # Preferred seat 座位偏好 (e.g. window/aisle)
 car-type = 'normal'       # Car Type 車廂類型 (e.g. normal/business)
@@ -40,6 +40,7 @@ college = 0  # 大學生票
 teenager = 0 # 少年票 (12-18)
 
 [fields.THSRC.ids]
+#disabled = [''] # Disabled ID No. 愛心票身分證字號 (e.g. AXXXXXXXXX)
 disabled = ['A270002017','A226316202'] # Disabled ID No. 愛心票身分證字號 (e.g. AXXXXXXXXX)
 elder = ['A170001401']    # Elder ID No. 敬老票身分證字號 (e.g. AXXXXXXXXX)
 

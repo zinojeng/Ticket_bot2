@@ -4,7 +4,7 @@
 [schedules]
 
 [schedules.THSRC]
-datetime = '2026-01-20 00:00' # datetime 預計訂票日期 (e.g. 2023-01-01 00:00)
+datetime = '2026-01-22 05:00' # datetime 預計訂票日期 (e.g. 2023-01-01 00:00)
 success-repeat = 3  # 成功後再循環次數（0 = 成功後立即停止，3 = 成功後再嘗試3次）
 
 # Copy user-agent from login browser (https://www.whatsmyua.info/)
@@ -21,7 +21,7 @@ start-station = 'Taipei'  # Start-station 出發站 (e.g. Taipei)
 dest-station = 'Taichung'   # Dest-station 抵達站 (e.g. Tainan)
 outbound-date = '2026-02-18'  # Outbound date 出發日期 (e.g. 2023-01-01)
 outbound-time = '08:00'  # Outbound time 出發時間（搜尋起始時間）(e.g. 09:00)
-outbound-time-end = '12:00'  # Outbound time end 出發時間結束（搜尋結束時間，留空則不限制）(e.g. 09:30)
+outbound-time-end = '13:00'  # Outbound time end 出發時間結束（搜尋結束時間，留空則不限制）(e.g. 09:30)
 inbound-time = ''   # Inbound time 抵達時間（留空則不限制）(e.g. 12:00)
 preferred-seat = '' # Preferred seat 座位偏好 (e.g. window/aisle)
 car-type = 'normal'       # Car Type 車廂類型 (e.g. normal/business)
